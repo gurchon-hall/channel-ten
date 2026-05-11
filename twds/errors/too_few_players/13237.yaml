@@ -1,0 +1,148 @@
+name: Late April Fools'
+location: Vila Velha - ES, Brazil
+date_start: 2026-04-18
+rounds_format: 2R+F
+players_count: 10
+winner: André Afonso
+vekn_number: 6040038
+event_url: https://www.vekn.net/event-calendar/event/13237
+event_id: 13237
+vp_comment: 2,5vp + 5vpGW in final
+forum_post_url: 
+  https://www.vekn.net/forum/event-reports-and-twd/82997-twd-late-april-fools-vila-velha-brazil-18-04-26
+deck:
+  name: Brechó do Hesha
+  created_by: Wandbr (André Afonso -VEKN
+  description: ''
+  crypt_count: 12
+  crypt_min: 12
+  crypt_max: 28
+  crypt_avg: 5.0
+  crypt:
+  - count: 6
+    name: Hesha Ruhadze
+    capacity: 7
+    disciplines: ani aus obf PRE PRO
+    clan: Ministry
+    grouping: 6
+  - count: 6
+    name: Angel Chavarria
+    capacity: 3
+    disciplines: THN
+    clan: Samedi
+    grouping: 6
+  library_count: 84
+  library_sections:
+  - name: Master
+    count: 3
+    cards:
+    - count: 1
+      name: Direct Intervention
+    - count: 1
+      name: Heidelberg Castle, Germany
+    - count: 1
+      name: Nod
+  - name: Action
+    count: 2
+    cards:
+    - count: 1
+      name: Precision
+    - count: 1
+      name: Revelations
+  - name: Equipment
+    count: 40
+    cards:
+    - count: 1
+      name: Aaron's Feeding Razor
+    - count: 1
+      name: Amulet of Temporal Perception
+    - count: 1
+      name: Argent Baton
+    - count: 1
+      name: Blade of Enoch
+    - count: 1
+      name: Blood Tears of Kephran
+    - count: 1
+      name: Body Bag
+    - count: 1
+      name: Book of Going Forth by Night, The
+    - count: 1
+      name: Bowl of Convergence
+    - count: 1
+      name: Changeling Skin Mask
+    - count: 1
+      name: Cloak of the Abalone
+    - count: 1
+      name: Codex of the Damned
+    - count: 1
+      name: Codex of the Edenic Groundskeepers
+    - count: 1
+      name: Concoction of Vitality
+    - count: 1
+      name: Drum of Xipe Totec
+    - count: 1
+      name: Gran Madre di Dio, Italy
+    - count: 1
+      name: Hand of Conrad
+    - count: 1
+      name: Ivory Bow
+    - count: 1
+      name: Joumlon's Axe
+    - count: 1
+      name: Kaymakli Fragment
+    - count: 5
+      name: Learjet
+    - count: 1
+      name: Martinelli's Ring
+    - count: 1
+      name: Monocle of Clarity
+    - count: 1
+      name: Mummy's Tongue
+    - count: 1
+      name: Orb of Ulain
+    - count: 1
+      name: Ritual Goblet
+    - count: 1
+      name: Rowan Ring
+    - count: 1
+      name: Sargon Fragment, The
+    - count: 1
+      name: Seal of Veddartha
+    - count: 1
+      name: Sengir Dagger
+    - count: 1
+      name: Signet of King Saul, The
+    - count: 1
+      name: Sire's Index Finger
+    - count: 1
+      name: Soul Gem of Etrius
+    - count: 1
+      name: Tapestry of Blood
+    - count: 1
+      name: Textbook Damnation, The
+    - count: 1
+      name: Veneficorum Artum Sanguis
+    - count: 1
+      name: Waxen Poetica
+  - name: Action Modifier
+    count: 35
+    cards:
+    - count: 1
+      name: Approximation of Loyalty
+    - count: 27
+      name: Hag's Wrinkles
+    - count: 1
+      name: Horrific Countenance
+    - count: 2
+      name: I am Legion
+    - count: 2
+      name: Perfect Clarity
+    - count: 2
+      name: Under My Skin
+  - name: Action Modifier/Combat
+    count: 4
+    cards:
+    - count: 2
+      name: Force of Personality
+    - count: 2
+      name: Hide the Mind
