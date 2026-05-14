@@ -1,0 +1,72 @@
+name: Anticipation
+location: Pittsburgh (PA), USA
+date_start: 2026-05-09
+rounds_format: 2R+F
+players_count: 15
+winner: Erik Albenze
+vekn_number: 2970004
+event_url: https://www.vekn.net/event-calendar/event/13207
+event_id: 13207
+forum_post_url: 
+  https://www.vekn.net/forum/event-reports-and-twd/83000-twd-anticipation-pittsburgh-pa-usa-9-may-2026
+deck:
+  name: Nephandus garbage
+  description: Just another garbage nephandus deck but with only 12 unique 
+    cards!
+  crypt_count: 12
+  crypt_min: 12
+  crypt_max: 20
+  crypt_avg: 4.0
+  crypt:
+  - count: 6
+    name: Antonio d'Erlette
+    capacity: 5
+    disciplines: dom for pot THA
+    clan: Tremere antitribu
+    grouping: 4
+  - count: 6
+    name: Keith Moody
+    capacity: 3
+    disciplines: DOM
+    clan: Tremere antitribu
+    grouping: 4
+  library_count: 60
+  library_sections:
+  - name: Master
+    count: 13
+    cards:
+    - count: 12
+      name: Ashur Tablets
+    - count: 1
+      name: Liquidation
+  - name: Action
+    count: 16
+    cards:
+    - count: 2
+      name: Ambush
+    - count: 8
+      name: Computer Hacking
+    - count: 6
+      name: Harass
+  - name: Ally
+    count: 10
+    cards:
+    - count: 10
+      name: Nephandus
+  - name: Reaction
+    count: 11
+    cards:
+    - count: 8
+      name: Deflection
+    - count: 3
+      name: Delaying Tactics
+  - name: Combat
+    count: 8
+    cards:
+    - count: 8
+      name: Target Vitals
+  - name: Event
+    count: 2
+    cards:
+    - count: 2
+      name: Unmasking, The
