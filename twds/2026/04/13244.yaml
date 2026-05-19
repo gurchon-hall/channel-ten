@@ -1,0 +1,127 @@
+name: WA State Championship 2026
+location: Perth, Australia
+date_start: 2026-04-19
+rounds_format: 3R+F
+players_count: 14
+winner: Ben Szymkow
+vekn_number: 4230008
+event_url: https://www.vekn.net/event-calendar/event/13244
+event_id: 13244
+forum_post_url: 
+  https://www.vekn.net/forum/event-reports-and-twd/83005-twd-wa-state-championship-2026
+deck:
+  name: 0 - AAA Sim
+  created_by: simcof
+  description: ''
+  crypt_count: 12
+  crypt_min: 32
+  crypt_max: 44
+  crypt_avg: 9.67
+  crypt:
+  - count: 4
+    name: Alexandra
+    capacity: 11
+    disciplines: dom ANI AUS CEL PRE
+    title: Inner Circle
+    clan: Toreador
+    grouping: 2
+  - count: 4
+    name: Anneke
+    capacity: 10
+    disciplines: dom AUS CEL PRE
+    title: Justicar
+    clan: Toreador
+    grouping: 1
+  - count: 4
+    name: Anson
+    capacity: 8
+    disciplines: aus dom CEL PRE
+    title: Prince
+    clan: Toreador
+    grouping: 1
+  library_count: 90
+  library_sections:
+  - name: Master
+    count: 19
+    cards:
+    - count: 1
+      name: Anarch Troublemaker
+    - count: 2
+      name: Art Museum
+    - count: 6
+      name: Ashur Tablets
+    - count: 2
+      name: Dreams of the Sphinx
+    - count: 1
+      name: Fame
+    - count: 1
+      name: Rack, The
+    - count: 6
+      name: Villein
+  - name: Action
+    count: 2
+    cards:
+    - count: 1
+      name: Fleetness
+    - count: 1
+      name: Flurry of Action
+  - name: Political Action
+    count: 3
+    cards:
+    - count: 1
+      name: Anarchist Uprising
+    - count: 1
+      name: Archon
+    - count: 1
+      name: Banishment
+  - name: Equipment
+    count: 7
+    cards:
+    - count: 7
+      name: .44 Magnum
+  - name: Action Modifier
+    count: 3
+    cards:
+    - count: 1
+      name: Aire of Elation
+    - count: 1
+      name: Enkil Cog
+    - count: 1
+      name: Loup
+  - name: Action Modifier/Combat
+    count: 2
+    cards:
+    - count: 2
+      name: Resist Earth's Grasp
+  - name: Reaction
+    count: 18
+    cards:
+    - count: 5
+      name: Eyes of Argus
+    - count: 2
+      name: My Enemy's Enemy
+    - count: 1
+      name: Quicken Sight
+    - count: 7
+      name: 'Second Tradition: Domain'
+    - count: 3
+      name: Telepathic Misdirection
+  - name: Combat
+    count: 36
+    cards:
+    - count: 2
+      name: Charismatic Aura
+    - count: 7
+      name: Concealed Weapon
+    - count: 1
+      name: Fast Hands
+    - count: 4
+      name: Infernal Pursuit
+    - count: 6
+      name: Psyche!
+    - count: 7
+      name: Pursuit
+    - count: 4
+      name: Sideslip
+    - count: 5
+      name: Taste of Vitae
