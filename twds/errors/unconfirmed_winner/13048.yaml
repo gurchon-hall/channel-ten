@@ -1,0 +1,147 @@
+name: PennyBridge - Charisma III
+location: Örebro, Sweden
+date_start: 2026-05-23
+rounds_format: 3R+F
+players_count: 12
+winner: Tim Karlsson
+vekn_number: 8090047
+event_url: https://www.vekn.net/event-calendar/event/13048
+event_id: 13048
+vp_comment: 0GW2 + 3vp in final
+forum_post_url: 
+  https://www.vekn.net/forum/event-reports-and-twd/83018-twd-pennybridge-charisma-iii-oerebro-sweden
+deck:
+  name: Hecata swarm
+  created_by: Xtikar27
+  description: ''
+  crypt_count: 12
+  crypt_min: 11
+  crypt_max: 24
+  crypt_avg: 4.5
+  crypt:
+  - count: 2
+    name: Alek König
+    capacity: 3
+    disciplines: OBL
+    clan: Hecata
+    grouping: 6
+  - count: 2
+    name: Gebeyehu Abdu
+    capacity: 5
+    disciplines: for AUS OBL
+    clan: Hecata
+    grouping: 6
+  - count: 2
+    name: Monica Giovanni
+    capacity: 6
+    disciplines: AUS FOR OBL
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Aitana, The Unholy
+    capacity: 6
+    disciplines: for tha AUS OBL
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Hiromitsu Asano
+    capacity: 4
+    disciplines: aus for obl
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Holliday "Burgundy" Hall
+    capacity: 5
+    disciplines: aus FOR OBL
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Lenelle, Mambo of Birmingham
+    capacity: 6
+    disciplines: aus FOR OBL
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Nadezhda
+    capacity: 3
+    disciplines: aus obl
+    clan: Hecata
+    grouping: 6
+  - count: 1
+    name: Peter St. John
+    capacity: 2
+    disciplines: obl
+    clan: Hecata
+    grouping: 6
+  library_count: 63
+  library_sections:
+  - name: Master
+    count: 13
+    cards:
+    - count: 1
+      name: Cappadocian Crypt
+    - count: 1
+      name: Direct Intervention
+    - count: 2
+      name: Dreams of the Sphinx
+    - count: 5
+      name: Family Gathering
+    - count: 1
+      name: 'Powerbase: Munich'
+    - count: 3
+      name: Villein
+  - name: Action
+    count: 5
+    cards:
+    - count: 2
+      name: Computer Hacking
+    - count: 3
+      name: Shroud of Decay
+  - name: Ally
+    count: 10
+    cards:
+    - count: 10
+      name: Spectral Servitor
+  - name: Equipment
+    count: 1
+    cards:
+    - count: 1
+      name: Heart of Nizchetus
+  - name: Action Modifier
+    count: 15
+    cards:
+    - count: 2
+      name: Leverage
+    - count: 4
+      name: Shadow Cast
+    - count: 3
+      name: Shadow Cloak
+    - count: 3
+      name: Stygian Shroud
+    - count: 3
+      name: Where the Veil Thins
+  - name: Reaction
+    count: 14
+    cards:
+    - count: 2
+      name: Delaying Tactics
+    - count: 2
+      name: Eyes of Argus
+    - count: 2
+      name: My Enemy's Enemy
+    - count: 2
+      name: On the Qui Vive
+    - count: 2
+      name: Shadow Sentinel
+    - count: 4
+      name: Telepathic Misdirection
+  - name: Combat
+    count: 4
+    cards:
+    - count: 4
+      name: Pass Through Shadow
+  - name: Event
+    count: 1
+    cards:
+    - count: 1
+      name: Unmasking, The
