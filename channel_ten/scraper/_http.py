@@ -26,7 +26,7 @@ DEFAULT_DELAY_SECONDS = 1.5
 HEADERS = {
     "User-Agent": (
         "channel-ten/0.2 "
-        "(tournament data archiver; contact via github.com/spigushe/vtes-twd-scraper)"
+        "(tournament data archiver; contact via github.com/gurchon-hall/channel-ten)"
     )
 }
 

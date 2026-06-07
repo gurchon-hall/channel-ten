@@ -424,8 +424,10 @@ def publish_all_as_single_pr(
 
         pr_body_lines += [
             "",
-            "_Automatically submitted by "
-            "[Channel 10](https://github.com/Spigushe/vtes-twd-scraper)._",
+            (
+                "_Automatically submitted by "
+                "[Channel 10](https://github.com/gurchon-hall/channel-ten)._"
+            ),
         ]
 
         try:

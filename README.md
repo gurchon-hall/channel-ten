@@ -2,10 +2,10 @@
 
 Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net/forum/event-reports-and-twd) and export them as YAML files.
 
-[![Pre-commit checks](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/pre-commit.yml)
-[![Scrape VTES TWD](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/scrape.yml/badge.svg)](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/scrape.yml)
-[![Validate VTES TWD](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/validate.yml/badge.svg)](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/validate.yml)
-[![Publish TWD Deck PRs](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/publish.yml/badge.svg)](https://github.com/Spigushe/vtes-twd-scraper/actions/workflows/publish.yml)
+[![Pre-commit checks](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml)
+[![Scrape VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml)
+[![Validate VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml)
+[![Publish TWD Deck PRs](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml)
 
 ## Data format
 
@@ -16,8 +16,8 @@ This convention mirrors the [GiottoVerducci/TWD](https://github.com/GiottoVerduc
 ## Installation
 
 ```bash
-git clone https://github.com/Spigushe/vtes-twd-scraper.git
-cd vtes-twd-scraper
+git clone https://github.com/gurchon-hall/channel-ten.git
+cd channel-ten
 python3 -m venv .venv
 source .venv/bin/activate      # Unix / macOS
 & .\.venv\Scripts\Activate.ps1 # Windows PowerShell
