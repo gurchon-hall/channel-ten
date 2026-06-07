@@ -1,26 +1,109 @@
 {
-    // Formatting — Ruff
+  // =========================
+  // Global editor behavior
+  // =========================
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "editor.rulers": [
+    100,
+    120
+  ],
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 100,
+  "editor.renderWhitespace": "selection",
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "diffEditor.ignoreTrimWhitespace": true,
+  // =========================
+  // Python / Ruff
+  // =========================
+  "python.terminal.useEnvFile": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeEvaluation.strictListInference": true,
+  "python.analysis.typeEvaluation.strictDictionaryInference": true,
+  "python.analysis.typeEvaluation.strictSetInference": true,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingTypeStubs": "none",
+    "reportMissingParameterType": "error",
+    "reportMissingTypeArgument": "error",
+    "reportUnknownParameterType": "error",
+    "reportUnknownArgumentType": "error",
+    "reportUnknownVariableType": "error",
+    "reportUnknownMemberType": "error",
+    "reportUnknownLambdaType": "error",
+    "reportUnknownReturnType": "error",
+    "reportUntypedFunctionDecorator": "error",
+    "reportUntypedClassDecorator": "error",
+    "reportUntypedBaseClass": "error"
+  },
+  "ruff.nativeServer": "on",
+  "ruff.format.preview": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports.ruff": "explicit",
+    "source.fixAll.ruff": "explicit"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  // =========================
+  // Jupyter / notebooks
+  // =========================
+  "notebook.formatOnSave.enabled": true,
+  "notebook.output.wordWrap": true,
+  "[jupyter]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  // =========================
+  // Markdown
+  // =========================
+  "markdown.validate.enabled": true,
+  "[markdown]": {
     "editor.formatOnSave": true,
-    "[python]": {
-        "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.formatOnSave": true
+    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.markdownlint": "explicit"
     },
-
-    // Type checking — Mypy
-    "python.analysis.typeCheckingMode": "standard",
-
-    // Search exclusions
-    "search.exclude": {
-        "**/vtes_scraper_v1/**": true
-    },
-    "files.exclude": {
-        "**/vtes_scraper_v1": false
-    },
-
-    // Testing — Pytest
-    "python.testing.pytestArgs": [
-        "tests"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "files.trimTrailingWhitespace": true
+  },
+  // =========================
+  // JSON
+  // =========================
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  // =========================
+  // Testing
+  // =========================
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests",
+    "-q"
+  ],
+  // =========================
+  // Performance / exclusions
+  // =========================
+  "files.exclude": {
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/__pycache__": true,
+    "**/.venv": true
+  },
+  "search.exclude": {
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/__pycache__": true,
+    "**/.venv": true
+  },
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+  }
 }

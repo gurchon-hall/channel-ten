@@ -1,70 +1,28 @@
-"""Tests for vtes_scraper.publisher using httpx mocking."""
+"""Tests for channel_ten.publisher using httpx mocking."""
 
-from datetime import date
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from conftest import make_tournament
 
-from vtes_scraper.models import (
-    CryptCard,
-    Deck,
-    LibraryCard,
-    LibrarySection,
-    Tournament,
-)
-from vtes_scraper.publisher import (
+from channel_ten.publisher import (
     BatchPRResult,
-    _create_branch,
-    _delete_branch,
-    _ensure_fork,
-    _file_exists_on_branch,
-    _find_existing_pr,
-    _get_authenticated_user,
-    _get_branch_sha,
-    _headers,
-    _open_pull_request,
-    _put_file,
+    _create_branch,  # pyright: ignore[reportPrivateUsage]
+    _delete_branch,  # pyright: ignore[reportPrivateUsage]
+    _ensure_fork,  # pyright: ignore[reportPrivateUsage]
+    _file_exists_on_branch,  # pyright: ignore[reportPrivateUsage]
+    _find_existing_pr,  # pyright: ignore[reportPrivateUsage]
+    _get_authenticated_user,  # pyright: ignore[reportPrivateUsage]
+    _get_branch_sha,  # pyright: ignore[reportPrivateUsage]
+    _headers,  # pyright: ignore[reportPrivateUsage]
+    _open_pull_request,  # pyright: ignore[reportPrivateUsage]
+    _put_file,  # pyright: ignore[reportPrivateUsage]
     publish_all_as_single_pr,
     sanitize_branch_name,
 )
-
-
-def _make_tournament(event_id_num: int = 9999) -> Tournament:
-    return Tournament(
-        name="Test Event",
-        location="Paris, France",
-        date_start=date(2023, 3, 25),
-        rounds_format="3R+F",
-        players_count=15,
-        winner="Jane Doe",
-        event_url=f"https://www.vekn.net/event-calendar/event/{event_id_num}",
-        deck=Deck(
-            crypt=[
-                CryptCard(
-                    count=2,
-                    name="Nathan Turner",
-                    capacity=4,
-                    disciplines="PRO ani",
-                    clan="Gangrel",
-                    grouping=6,
-                )
-            ],
-            crypt_count=2,
-            crypt_min=4,
-            crypt_max=4,
-            crypt_avg=4.0,
-            library_sections=[
-                LibrarySection(
-                    name="Master",
-                    count=1,
-                    cards=[LibraryCard(count=1, name="Blood Doll")],
-                )
-            ],
-            library_count=1,
-        ),
-    )
-
 
 # ---------------------------------------------------------------------------
 # _headers
@@ -73,7 +31,7 @@ def _make_tournament(event_id_num: int = 9999) -> Tournament:
 
 class TestHeaders:
     def test_raises_without_token(self):
-        with patch("vtes_scraper.publisher._GITHUB_TOKEN", None):
+        with patch("channel_ten.publisher._GITHUB_TOKEN", None):
             with pytest.raises(ValueError, match="GitHub token"):
                 _headers(token=None)
 
@@ -83,7 +41,7 @@ class TestHeaders:
         assert "Accept" in h
 
     def test_uses_env_token_when_not_passed(self):
-        with patch("vtes_scraper.publisher._GITHUB_TOKEN", "env_token"):
+        with patch("channel_ten.publisher._GITHUB_TOKEN", "env_token"):
             h = _headers(token=None)
         assert h["Authorization"] == "Bearer env_token"
 
@@ -323,7 +281,7 @@ class TestDeleteBranch:
         _delete_branch(mock_client, "my-branch", token="mytoken", owner="testuser")
         mock_client.delete.assert_called_once()
 
-    def test_non_204_logs_warning(self, caplog):
+    def test_non_204_logs_warning(self, caplog: pytest.LogCaptureFixture):
         import logging
 
         mock_resp = MagicMock()
@@ -332,7 +290,7 @@ class TestDeleteBranch:
         mock_client = MagicMock()
         mock_client.delete.return_value = mock_resp
 
-        with caplog.at_level(logging.WARNING, logger="vtes_scraper.publisher"):
+        with caplog.at_level(logging.WARNING, logger="channel_ten.publisher"):
             _delete_branch(mock_client, "missing-branch", token="mytoken", owner="testuser")
 
         assert any("Could not delete branch" in r.message for r in caplog.records)
@@ -359,7 +317,7 @@ class TestBatchPRResult:
 
 
 class TestPublishAllAsSinglePr:
-    def _mock_client_responses(self, file_exists=False, fork_fails=False):
+    def _mock_client_responses(self, file_exists: bool = False, fork_fails: bool = False):
         """Build a mock httpx.Client context manager with common responses."""
         # Authenticated user
         user_resp = MagicMock()
@@ -419,12 +377,12 @@ class TestPublishAllAsSinglePr:
         )
 
     def test_all_skipped_returns_skipped_all(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=True,
             ),
         ):
@@ -434,28 +392,28 @@ class TestPublishAllAsSinglePr:
         assert result.pr_url is None
 
     def test_fork_failure_returns_errors(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         err = httpx.HTTPStatusError("403", request=MagicMock(), response=MagicMock())
-        with patch("vtes_scraper.publisher._ensure_fork", side_effect=err):
+        with patch("channel_ten.publisher._ensure_fork", side_effect=err):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
         assert len(result.errors) == 1
 
     def test_successful_publish(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file"),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file"),
             patch(
-                "vtes_scraper.publisher._open_pull_request",
+                "channel_ten.publisher._open_pull_request",
                 return_value="https://github.com/pr/1",
             ),
         ):
@@ -465,16 +423,16 @@ class TestPublishAllAsSinglePr:
         assert len(result.published) == 1
 
     def test_branch_creation_failure(self):
-        t = _make_tournament()
+        t = make_tournament()
         err = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", side_effect=err),
+            patch("channel_ten.publisher._get_branch_sha", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -482,21 +440,21 @@ class TestPublishAllAsSinglePr:
         assert "Branch creation failed" in result.errors[0][1]
 
     def test_put_file_http_error(self):
-        t = _make_tournament()
+        t = make_tournament()
         mock_response = MagicMock()
         mock_response.status_code = 422
         mock_response.text = "Unprocessable"
         err = httpx.HTTPStatusError("422", request=MagicMock(), response=mock_response)
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file", side_effect=err),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -504,18 +462,18 @@ class TestPublishAllAsSinglePr:
         assert result.pr_url is None  # no PR if nothing published
 
     def test_put_file_generic_error(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
             patch(
-                "vtes_scraper.publisher._put_file",
+                "channel_ten.publisher._put_file",
                 side_effect=RuntimeError("oops"),
             ),
         ):
@@ -524,19 +482,19 @@ class TestPublishAllAsSinglePr:
         assert len(result.errors) == 1
 
     def test_pr_open_http_error_does_not_raise(self):
-        t = _make_tournament()
+        t = make_tournament()
         err = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file"),
-            patch("vtes_scraper.publisher._open_pull_request", side_effect=err),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file"),
+            patch("channel_ten.publisher._open_pull_request", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -545,23 +503,23 @@ class TestPublishAllAsSinglePr:
         assert result.pr_url is None
 
     def test_multiple_tournaments_with_mix(self):
-        t1 = _make_tournament(9001)
-        t2 = _make_tournament(9002)
+        t1 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9001")
+        t2 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9002")
 
-        def file_exists(client, path, branch, token):
-            return "9001" in path  # t1 already exists
+        def file_exists(client: httpx.Client, path: Path, branch: str, token: str):
+            return "9001" in str(path)  # t1 already exists
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 side_effect=file_exists,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file"),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file"),
             patch(
-                "vtes_scraper.publisher._open_pull_request",
+                "channel_ten.publisher._open_pull_request",
                 return_value="https://github.com/pr/1",
             ),
         ):
@@ -571,19 +529,19 @@ class TestPublishAllAsSinglePr:
         assert 9002 in result.published
 
     def test_dry_run_deletes_branch_and_no_pr(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file"),
-            patch("vtes_scraper.publisher._open_pull_request") as mock_pr,
-            patch("vtes_scraper.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file"),
+            patch("channel_ten.publisher._open_pull_request") as mock_pr,
+            patch("channel_ten.publisher._delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -594,15 +552,15 @@ class TestPublishAllAsSinglePr:
         mock_del.assert_called_once()
 
     def test_dry_run_all_skipped_no_branch_deleted(self):
-        t = _make_tournament()
+        t = make_tournament()
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=True,
             ),
-            patch("vtes_scraper.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher._delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -610,22 +568,22 @@ class TestPublishAllAsSinglePr:
         mock_del.assert_not_called()
 
     def test_dry_run_all_commits_failed_deletes_branch(self):
-        t = _make_tournament()
+        t = make_tournament()
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Server Error"
         err = httpx.HTTPStatusError("500", request=MagicMock(), response=mock_response)
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
-            patch("vtes_scraper.publisher._put_file", side_effect=err),
-            patch("vtes_scraper.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
+            patch("channel_ten.publisher._put_file", side_effect=err),
+            patch("channel_ten.publisher._delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -660,8 +618,8 @@ class TestPublishAllAsSinglePr:
 
     def test_with_errors_in_pr_body(self):
         """Test PR body generation when there are both published and errored decks."""
-        t1 = _make_tournament(9001)
-        t2 = _make_tournament(9002)
+        t1 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9001")
+        t2 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9002")
         mock_response = MagicMock()
         mock_response.status_code = 422
         mock_response.text = "Bad"
@@ -669,25 +627,25 @@ class TestPublishAllAsSinglePr:
 
         call_count = [0]
 
-        def put_file_side_effect(*args, **kwargs):
+        def put_file_side_effect(*args: Any, **kwargs: Any):
             call_count[0] += 1
             if call_count[0] == 2:
                 raise err
 
         with (
-            patch("vtes_scraper.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
             patch(
-                "vtes_scraper.publisher._file_exists_on_branch",
+                "channel_ten.publisher._file_exists_on_branch",
                 return_value=False,
             ),
-            patch("vtes_scraper.publisher._get_branch_sha", return_value="abc123"),
-            patch("vtes_scraper.publisher._create_branch"),
+            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher._create_branch"),
             patch(
-                "vtes_scraper.publisher._put_file",
+                "channel_ten.publisher._put_file",
                 side_effect=put_file_side_effect,
             ),
             patch(
-                "vtes_scraper.publisher._open_pull_request",
+                "channel_ten.publisher._open_pull_request",
                 return_value="https://github.com/pr/3",
             ),
         ):
@@ -729,7 +687,7 @@ class TestEnsureFork:
         mock_client.get.side_effect = [user_resp, fork_not_ready, fork_ready]
         mock_client.post.return_value = MagicMock()
 
-        with patch("vtes_scraper.publisher.time") as mock_time:
+        with patch("channel_ten.publisher.time") as mock_time:
             result = _ensure_fork(mock_client, token="mytoken")
 
         assert result == "testuser"

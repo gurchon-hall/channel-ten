@@ -2,15 +2,10 @@
 
 import pytest
 
-from vtes_scraper.parser import (
-    _extract_vekn_url,
-    _normalize_rounds,
-    _parse_crypt_line,
-    _parse_library_line,
-    _split_date,
-    _strip_hash_comment,
-    _strip_inline_comment,
+from channel_ten.parser import (
+    helpers,
     parse_twd_text,
+    parsers,
 )
 
 # ---------------------------------------------------------------------------
@@ -20,77 +15,77 @@ from vtes_scraper.parser import (
 
 class TestStripInlineComment:
     def test_with_comment(self):
-        text, comment = _strip_inline_comment("Blood Doll -- very useful")
+        text, comment = helpers.strip_inline_comment("Blood Doll -- very useful")
         assert text == "Blood Doll"
         assert comment == "very useful"
 
     def test_without_comment(self):
-        text, comment = _strip_inline_comment("Blood Doll")
+        text, comment = helpers.strip_inline_comment("Blood Doll")
         assert text == "Blood Doll"
         assert comment is None
 
 
 class TestStripHashComment:
     def test_strips_hash(self):
-        result = _strip_hash_comment("Some text # comment here")
+        result = helpers.strip_hash_comment("Some text # comment here")
         assert result == "Some text"
 
     def test_no_hash(self):
-        result = _strip_hash_comment("Some text")
+        result = helpers.strip_hash_comment("Some text")
         assert result == "Some text"
 
     def test_leading_hash(self):
-        result = _strip_hash_comment("# full comment")
+        result = helpers.strip_hash_comment("# full comment")
         assert result == ""
 
 
 class TestNormalizeRounds:
     def test_canonical(self):
-        assert _normalize_rounds("3R+F") == "3R+F"
+        assert helpers.normalize_rounds("3R+F") == "3R+F"
 
     def test_with_final(self):
-        assert _normalize_rounds("3R+Final") == "3R+F"
+        assert helpers.normalize_rounds("3R+Final") == "3R+F"
 
     def test_with_spaces(self):
-        assert _normalize_rounds("2 R + F") == "2R+F"
+        assert helpers.normalize_rounds("2 R + F") == "2R+F"
 
     def test_no_match_returns_stripped(self):
-        assert _normalize_rounds("  blah  ") == "blah"
+        assert helpers.normalize_rounds("  blah  ") == "blah"
 
 
 class TestExtractVeknUrl:
     def test_full_url(self):
-        url = _extract_vekn_url("https://www.vekn.net/event-calendar/event/8470")
+        url = helpers.extract_vekn_url("https://www.vekn.net/event-calendar/event/8470")
         assert url == "https://www.vekn.net/event-calendar/event/8470"
 
     def test_bare_www(self):
-        url = _extract_vekn_url("www.vekn.net/event-calendar/event/1234")
+        url = helpers.extract_vekn_url("www.vekn.net/event-calendar/event/1234")
         assert url == "https://www.vekn.net/event-calendar/event/1234"
 
     def test_no_url(self):
-        url = _extract_vekn_url("No URL here")
+        url = helpers.extract_vekn_url("No URL here")
         assert url is None
 
 
 class TestSplitDate:
     def test_single_date(self):
-        start, end = _split_date("March 25th 2023")
+        start, end = helpers.split_date("March 25th 2023")
         assert start == "March 25th 2023"
         assert end is None
 
     def test_date_range(self):
-        start, end = _split_date("March 25th 2023 -- March 26th 2023")
+        start, end = helpers.split_date("March 25th 2023 -- March 26th 2023")
         assert start == "March 25th 2023"
         assert end == "March 26th 2023"
 
     def test_strips_time(self):
-        start, end = _split_date("March 25th 2023 14:00")
+        start, _ = helpers.split_date("March 25th 2023 14:00")
         assert "14:00" not in start
 
 
 class TestParseCryptLine:
     def test_valid_line(self):
-        card = _parse_crypt_line("2x Nathan Turner      4 PRO ani                 Gangrel:6")
+        card = parsers.parse_crypt_line("2x Nathan Turner      4 PRO ani                 Gangrel:6")
         assert card is not None
         assert card.name == "Nathan Turner"
         assert card.count == 2
@@ -99,18 +94,18 @@ class TestParseCryptLine:
         assert card.grouping == 6
 
     def test_invalid_line_returns_none(self):
-        card = _parse_crypt_line("This is not a card line")
+        card = parsers.parse_crypt_line("This is not a card line")
         assert card is None
 
     def test_with_comment(self):
-        card = _parse_crypt_line(
+        card = parsers.parse_crypt_line(
             "2x Nathan Turner      4 PRO ani                 Gangrel:6 -- some note"
         )
         assert card is not None
         assert card.comment == "some note"
 
     def test_with_title(self):
-        card = _parse_crypt_line("1x Tara              6 cel POT PRE prince       Brujah:5")
+        card = parsers.parse_crypt_line("1x Tara              6 cel POT PRE prince       Brujah:5")
         assert card is not None
         assert card.title == "prince"
         assert card.clan == "Brujah"
@@ -118,18 +113,18 @@ class TestParseCryptLine:
 
 class TestParseLibraryLine:
     def test_valid_line(self):
-        card = _parse_library_line("1x Blood Doll")
+        card = parsers.parse_library_line("1x Blood Doll")
         assert card is not None
         assert card.name == "Blood Doll"
         assert card.count == 1
 
     def test_with_comment(self):
-        card = _parse_library_line("1x Blood Doll -- discard this")
+        card = parsers.parse_library_line("1x Blood Doll -- discard this")
         assert card is not None
         assert card.comment == "discard this"
 
     def test_invalid_line_returns_none(self):
-        card = _parse_library_line("Not a card line")
+        card = parsers.parse_library_line("Not a card line")
         assert card is None
 
 
@@ -260,6 +255,7 @@ Library (2 cards)
 class TestLibraryWithoutSection:
     def test_cards_parsed_without_section(self):
         t = parse_twd_text(NO_SECTION_HEADER)
+        assert t.deck
         # Should still parse cards even without a section header
         total_cards = sum(len(s.cards) for s in t.deck.library_sections)
         assert total_cards == 2
@@ -295,6 +291,7 @@ Master (1)
 class TestMultilineDescription:
     def test_description_on_next_line(self):
         t = parse_twd_text(MULTILINE_DESC)
+        assert t.deck
         assert "great description" in t.deck.description
 
 
@@ -327,6 +324,7 @@ Master (1)
 class TestInlineDescription:
     def test_description_inline(self):
         t = parse_twd_text(INLINE_DESC)
+        assert t.deck
         assert t.deck.description == "Inline description value."
 
 

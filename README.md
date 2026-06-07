@@ -1,4 +1,4 @@
-# vtes-twd-scraper
+# Channel 10
 
 Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net/forum/event-reports-and-twd) and export them as YAML files.
 
@@ -33,54 +33,54 @@ Requires Python ≥ 3.14.
 
 ```bash
 # Scrape all pages (starting from page 0)
-vtes-scraper scrape
+channel-ten scrape
 
 # Scrape pages 0–4 only (--last-page is inclusive, 0-indexed)
-vtes-scraper scrape --last-page 4
+channel-ten scrape --last-page 4
 
 # Start scraping from page 5 and stop at page 6
-vtes-scraper scrape --start-page 5 --last-page 6
+channel-ten scrape --start-page 5 --last-page 6
 
 # Overwrite existing YAML files
-vtes-scraper scrape --overwrite
+channel-ten scrape --overwrite
 
 # Write output to a custom directory
-vtes-scraper scrape --output-dir path/to/dir
+channel-ten scrape --output-dir path/to/dir
 
 # Parse a single local .txt file to YAML (prints to stdout)
-vtes-scraper parse decks/8470.txt
+channel-ten parse decks/8470.txt
 
 # Parse a .txt file and write YAML to a directory
-vtes-scraper parse decks/8470.txt --output-dir twds
+channel-ten parse decks/8470.txt --output-dir twds
 
 # Convert a YAML file back to .txt (prints to stdout)
-vtes-scraper parse twds/2023/03/9999.yaml
+channel-ten parse twds/2023/03/9999.yaml
 
 # Re-validate the 25 most recent published YAML files (fast, default)
-vtes-scraper validate
+channel-ten validate
 
 # Re-validate every YAML file in twds/ (slow, rescrapes the forum)
-vtes-scraper validate --full-validation
+channel-ten validate --full-validation
 
 # Report only — do not move or update any files
-vtes-scraper validate --dry-run
+channel-ten validate --dry-run
 
 # Publish new decks as a single PR to GiottoVerducci/TWD
-GITHUB_TOKEN=ghp_xxx vtes-scraper publish
+GITHUB_TOKEN=ghp_xxx channel-ten publish
 
 # Publish including pre-2020 decks (skipped by default)
-GITHUB_TOKEN=ghp_xxx vtes-scraper publish --include-pre-2020
+GITHUB_TOKEN=ghp_xxx channel-ten publish --include-pre-2020
 
 # Simulate publish without opening a PR (branch is deleted afterwards)
-GITHUB_TOKEN=ghp_xxx vtes-scraper publish --dry-run
+GITHUB_TOKEN=ghp_xxx channel-ten publish --dry-run
 ```
 
 ### Python API
 
 ```python
 import httpx
-from vtes_scraper.scraper import scrape_forum
-from vtes_scraper.output import write_tournament_yaml
+from channel_ten.scraper import scrape_forum
+from channel_ten.output import write_tournament_yaml
 from pathlib import Path
 
 with httpx.Client() as client:
@@ -95,8 +95,8 @@ with httpx.Client() as client:
 pytest
 
 # Lint + format
-ruff check vtes_scraper/ tests/
-ruff format vtes_scraper/ tests/
+ruff check channel_ten/ tests/
+ruff format channel_ten/ tests/
 
 # Run all pre-commit hooks manually against every file
 pre-commit run --all-files
@@ -181,62 +181,62 @@ deck:
 ## Project structure
 
 ```txt
-vtes-twd-scraper/
-├── vtes_scraper/
-│   ├── cli/
-│   │   ├── __init__.py        # CLI entry point (vtes-scraper) and argparse setup
-│   │   ├── _common.py         # CLI shared utilities
-│   │   ├── parse.py           # CLI command: parse .txt ↔ .yaml
-│   │   ├── publish.py         # CLI command: publish decks to GitHub
-│   │   ├── scrape.py          # CLI command: scrape the VEKN forum
-│   │   └── validate.py        # CLI command: re-validate published YAML files
-│   ├── output/
-│   │   ├── __init__.py
-│   │   ├── _common.py         # Output shared utilities
-│   │   ├── txt.py             # TXT serializer
-│   │   └── yaml.py            # YAML serializer
-│   ├── parser/
-│   │   ├── __init__.py
-│   │   ├── _deck.py           # Deck section parser
-│   │   ├── _header.py         # Tournament header parser
-│   │   ├── _helpers.py        # Parser utilities
-│   │   └── _twd.py            # Top-level TWD text format parser
-│   ├── scraper/
-│   │   ├── __init__.py
-│   │   ├── _forum.py          # Forum index traversal and TWD extraction
-│   │   ├── _http.py           # Low-level HTTP helpers and constants
-│   │   ├── _icons.py          # Topic icon detection
-│   │   └── _vekn.py           # VEKN event calendar and player registry lookups
-│   ├── models.py              # Pydantic data models
-│   ├── publisher.py           # GitHub PR publisher
-│   └── validator.py           # YAML validation logic
-├── tests/
-│   ├── test_cli_common.py
-│   ├── test_cli_parse.py
-│   ├── test_cli_publish.py
-│   ├── test_cli_scrape.py
-│   ├── test_cli_validate.py
-│   ├── test_krcg_helper.py
-│   ├── test_models.py
-│   ├── test_output.py
-│   ├── test_parser.py
-│   ├── test_parser_extras.py
-│   ├── test_publisher.py
-│   ├── test_scraper.py
-│   ├── test_scraper_icons.py
-│   └── test_validator.py
-├── twds/                      # Scraped YAML files (YYYY/MM/<event_id>.yaml)
-├── publish/                   # Markdown publish reports (YYYY/MM/<date>.md)
-├── .github/
-│   └── workflows/
-│       ├── scrape.yml         # CRON scrape at 06:00 UTC every day
-│       ├── validate.yml       # CRON re-validate at 20:00 UTC every Sunday
-│       ├── publish.yml        # CRON publish at 08:00 UTC every Monday
-│       ├── pre-commit.yml     # Pre-commit checks on push / PR
-│       └── feature-review.yml # Automated feature-request review
-├── .pre-commit-config.yaml
-├── pyproject.toml
-└── .env.example
+channel_ten/
+├── cli/
+│   ├── __init__.py        # CLI entry point (channel-ten) and argparse setup
+│   ├── _common.py         # CLI shared utilities
+│   ├── parse.py           # CLI command: parse .txt ↔ .yaml
+│   ├── publish.py         # CLI command: publish decks to GitHub
+│   ├── scrape.py          # CLI command: scrape the VEKN forum
+│   └── validate.py        # CLI command: re-validate published YAML files
+├── output/
+│   ├── __init__.py
+│   ├── _common.py         # Output shared utilities
+│   ├── txt.py             # TXT serializer
+│   └── yaml.py            # YAML serializer
+├── parser/
+│   ├── __init__.py
+│   ├── _deck.py           # Deck section parser
+│   ├── _header.py         # Tournament header parser
+│   ├── _helpers.py        # Parser utilities
+│   └── _twd.py            # Top-level TWD text format parser
+├── scraper/
+│   ├── __init__.py
+│   ├── _forum.py          # Forum index traversal and TWD extraction
+│   ├── _http.py           # Low-level HTTP helpers and constants
+│   ├── _icons.py          # Topic icon detection
+│   └── _vekn.py           # VEKN event calendar and player registry lookups
+├── models.py              # Pydantic data models
+├── publisher.py           # GitHub PR publisher
+└── validator.py           # YAML validation logic
+tests/
+├── conftest.py            # Shared test factories (make_tournament, etc.)
+├── test_cli_common.py
+├── test_cli_parse.py
+├── test_cli_publish.py
+├── test_cli_scrape.py
+├── test_cli_validate.py
+├── test_krcg_helper.py
+├── test_models.py
+├── test_output.py
+├── test_parser.py
+├── test_parser_extras.py
+├── test_publisher.py
+├── test_scraper.py
+├── test_scraper_icons.py
+└── test_validator.py
+twds/                      # Scraped YAML files (YYYY/MM/<event_id>.yaml)
+publish/                   # Markdown publish reports (YYYY/MM/<date>.md)
+.github/
+└── workflows/
+    ├── scrape.yml         # CRON scrape at 06:00 UTC every day
+    ├── validate.yml       # CRON re-validate at 20:00 UTC every Sunday
+    ├── publish.yml        # CRON publish at 08:00 UTC every Monday
+    ├── pre-commit.yml     # Pre-commit checks on push / PR
+    └── feature-review.yml # Automated feature-request review
+.pre-commit-config.yaml
+pyproject.toml
+.env.example
 ```
 
 ## Notes

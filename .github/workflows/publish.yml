@@ -1,4 +1,4 @@
-name: Publish VTES TWD
+name: Publish TWD
 
 on:
   # Run every Monday at 08:00 UTC (after the weekly scrape has run)
@@ -53,7 +53,7 @@ jobs:
           # The script forks GiottoVerducci/TWD into the token owner's account
           # and opens a PR from the fork — no direct write access to that repo needed.
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: vtes-scraper publish --verbose
+        run: channel-ten publish --verbose
 
       - name: Commit publish report
         run: |

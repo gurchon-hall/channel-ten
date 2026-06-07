@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vtes-twd-scraper"
+name = "channel-ten"
 version = "0.2.0"
-description = "Scrape VTES tournament winning decks from vekn.net and export to YAML"
+description = "Channel 10: Scrape VTES tournament winning decks from vekn.net and export to YAML"
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }
@@ -38,10 +38,10 @@ dev = [
 ]
 
 [project.scripts]
-vtes-scraper = "vtes_scraper.cli:main"
+channel-ten = "channel_ten.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["vtes_scraper*"]
+include = ["channel_ten*"]
 
 # ---------------------------------------------------------------------------
 # Ruff (linter/formatter)
@@ -89,7 +89,7 @@ addopts = [
     "--strict-markers",
     "--tb=short",
     # Configuration coverage par défaut (optionnel)
-    "--cov=vtes_scraper",
+    "--cov=channel_ten",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
@@ -102,14 +102,15 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["vtes_scraper"]
+source = ["channel_ten"]
 branch = true
 parallel = true
 omit = [
     "*/tests/*",
     "*/test_*.py",
     "*/__pycache__/*",
-    "vtes_scraper_*/*",
+    "channel_ten_*/*",
+    "vtes_scraper*/**",
 ]
 
 [tool.coverage.report]

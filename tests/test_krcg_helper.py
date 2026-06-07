@@ -1,14 +1,17 @@
-"""Tests for vtes_scraper._krcg_helper module.
+"""Tests for channel_ten._krcg_helper module.
 
 Strategy: mock the krcg module in sys.modules so tests never touch the
 real VTES database, keeping them fast and deterministic.
 """
 
+# pyright: reportPrivateUsage=false
+
 import sys
 import types
+from typing import Any
 from unittest.mock import MagicMock, patch
 
-import vtes_scraper._krcg_helper as kh
+import channel_ten._krcg_helper as kh
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -22,7 +25,7 @@ def _reset_state() -> None:
     kh._cards_loaded.clear()
 
 
-def _make_krcg_mock(get_return_value=None):
+def _make_krcg_mock(get_return_value: Any = None):
     """Return a (mock_krcg_module, mock_vtes_module) pair.
 
     mock_krcg.vtes.VTES.get returns *get_return_value*.
@@ -45,7 +48,7 @@ def _make_crypt_card(
     disciplines: list[str] | None = None,
     clans: list[str] | None = None,
     title: str | None = None,
-    variants: dict | None = None,
+    variants: dict[Any, Any] | None = None,
 ) -> MagicMock:
     card = MagicMock()
     card.id = card_id
@@ -208,7 +211,7 @@ class TestGetAllVampVariants:
         mock_base.variants = {"adv": 1003}
         mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=mock_base)
 
-        def _side_effect(card_id, default=None):
+        def _side_effect(card_id: int | str, default: Any = None):
             if card_id == "Nathan Turner":
                 return mock_base
             if card_id == 1002:
@@ -277,7 +280,7 @@ class TestGetAllVampVariants:
         """KeyError from _krcg_card_search for a variant id is caught and skipped."""
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
-        def _mock_search(key):
+        def _mock_search(key: str | int):
             if key in ("Nathan Turner", 1001):
                 return main_card
             raise KeyError(key)
@@ -291,7 +294,7 @@ class TestGetAllVampVariants:
         """None from _krcg_card_search for a variant id is skipped."""
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
-        def _mock_search(key):
+        def _mock_search(key: str | int):
             if key in ("Nathan Turner", 1001):
                 return main_card
             return None
@@ -306,7 +309,7 @@ class TestGetAllVampVariants:
         lib_card = _make_crypt_card(card_id=2001, crypt=False)
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
-        def _mock_search(key):
+        def _mock_search(key: str | int):
             if key in ("Nathan Turner", 1001):
                 return main_card
             return lib_card
@@ -321,7 +324,7 @@ class TestGetAllVampVariants:
         bad_card = _make_crypt_card(card_id=2001, group=[1, 2])  # list → int() raises TypeError
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
-        def _mock_search(key):
+        def _mock_search(key: str | int):
             if key in ("Nathan Turner", 1001):
                 return main_card
             return bad_card
@@ -335,7 +338,7 @@ class TestGetAllVampVariants:
         """Unexpected exception in the outer try block returns []."""
         main_card = _make_crypt_card(card_id=1001, variants={})
 
-        def _mock_search(key):
+        def _mock_search(key: str | int):
             if key == "Nathan Turner":
                 return main_card
             raise RuntimeError("unexpected!")  # propagates to outer except

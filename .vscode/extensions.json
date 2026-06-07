@@ -1,0 +1,30 @@
+{
+    "recommendations": [
+        // AI / assistant
+        "anthropic.claude-code",
+        // Python
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "ms-python.mypy-type-checker",
+        "ms-python.vscode-python-envs",
+        // Jupyter
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter-keymap",
+        "ms-toolsai.jupyter-renderers",
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-toolsai.vscode-jupyter-slideshow",
+        // Markdown
+        "davidanson.vscode-markdownlint",
+        "bierner.markdown-mermaid",
+        // Git / GitHub
+        "donjayamanne.githistory",
+        "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
+        // Data
+        "mechatroner.rainbow-csv",
+        "qwtel.sqlite-viewer",
+        "adamviola.parquet-explorer"
+    ]
+}

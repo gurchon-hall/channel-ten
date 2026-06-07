@@ -2,60 +2,13 @@
 
 import argparse
 import tempfile
-from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from vtes_scraper.cli import publish as publish_cmd
-from vtes_scraper.models import (
-    CryptCard,
-    Deck,
-    LibraryCard,
-    LibrarySection,
-    Tournament,
-)
-from vtes_scraper.publisher import BatchPRResult
+from conftest import make_tournament
 
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
-
-def _make_tournament() -> Tournament:
-    return Tournament(
-        name="Test Event",
-        location="Paris, France",
-        date_start=date(2023, 3, 25),
-        rounds_format="3R+F",
-        players_count=15,
-        winner="Jane Doe",
-        event_url="https://www.vekn.net/event-calendar/event/9999",
-        deck=Deck(
-            crypt=[
-                CryptCard(
-                    count=2,
-                    name="Nathan Turner",
-                    capacity=4,
-                    disciplines="PRO ani",
-                    clan="Gangrel",
-                    grouping=6,
-                )
-            ],
-            crypt_count=2,
-            crypt_min=4,
-            crypt_max=4,
-            crypt_avg=4.0,
-            library_sections=[
-                LibrarySection(
-                    name="Master",
-                    count=1,
-                    cards=[LibraryCard(count=1, name="Blood Doll")],
-                )
-            ],
-            library_count=1,
-        ),
-    )
-
+from channel_ten.cli import publish as publish_cmd
+from channel_ten.publisher import BatchPRResult
 
 # ---------------------------------------------------------------------------
 # publish command
@@ -80,7 +33,7 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch.dict("os.environ", {}, clear=True):
-                with patch("vtes_scraper.cli.publish.os.environ.get", return_value=""):
+                with patch("channel_ten.cli.publish.os.environ.get", return_value=""):
                     ret = publish_cmd.run(args)
             assert ret == 1
 
@@ -97,11 +50,11 @@ class TestPublishCommand:
             assert ret == 0
 
     def test_run_with_yaml_files(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(pr_url="https://github.com/pr/1", published=["9999"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -114,18 +67,18 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
             assert ret == 0
 
     def test_run_skipped_all(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(skipped_all=True, skipped=["9999"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -138,14 +91,14 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
             assert ret == 0
 
     def test_run_with_errors(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(
             pr_url="https://github.com/pr/2",
             published=["9999"],
@@ -153,7 +106,7 @@ class TestPublishCommand:
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -166,18 +119,18 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
             assert ret == 1
 
     def test_run_no_pr_url(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(published=["9999"])  # no pr_url
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -190,7 +143,7 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
@@ -215,11 +168,11 @@ class TestPublishCommand:
 
     def test_run_skips_error_decks(self):
         """Decks inside twds/errors/ must not be submitted to the publisher."""
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(pr_url="https://github.com/pr/1", published=["9999"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             # Place a valid YAML in the errors subdirectory
             errors_dir = Path(tmpdir) / "errors" / "unconfirmed_winner"
@@ -235,7 +188,7 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ) as mock_publish:
                 ret = publish_cmd.run(args)
@@ -244,10 +197,15 @@ class TestPublishCommand:
             mock_publish.assert_not_called()
 
     def test_write_publish_report_with_pr_url(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(pr_url="https://github.com/pr/1", published=["9999"])
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [t])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [t],
+            )
             assert path.exists()
             content = path.read_text()
             assert "https://github.com/pr/1" in content
@@ -255,14 +213,24 @@ class TestPublishCommand:
     def test_write_publish_report_skipped_all(self):
         result = BatchPRResult(skipped_all=True)
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [],
+            )
             content = path.read_text()
             assert "already present on master" in content
 
     def test_write_publish_report_no_pr(self):
         result = BatchPRResult()
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [],
+            )
             content = path.read_text()
             assert "No PR opened" in content
 
@@ -271,24 +239,38 @@ class TestPublishCommand:
             published=["9999"],
             errors=[("bad_id", "Failed to commit")],
         )
-        t = _make_tournament()
+        t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [t])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [t],
+            )
             content = path.read_text()
             assert "bad_id" in content
 
     def test_write_publish_report_with_skipped(self):
         result = BatchPRResult(skipped=["8888"])
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [],
+            )
             content = path.read_text()
             assert "8888" in content
 
     def test_write_publish_report_dry_run_with_timestamp(self):
         result = BatchPRResult(dry_run=True, published=["9999"])
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(
-                result, Path(tmpdir), "2023-03-25", [], timestamp="2023-03-25-10-30-00"
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [],
+                timestamp="2023-03-25-10-30-00",
             )
             content = path.read_text()
         assert "dry-run" in path.name
@@ -298,18 +280,27 @@ class TestPublishCommand:
     def test_write_publish_report_dry_run_no_timestamp(self):
         result = BatchPRResult(dry_run=True)
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(
-                result, Path(tmpdir), "2023-03-25", [], timestamp=None
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [],
+                timestamp=None,
             )
         assert "dry-run" in path.name
 
     def test_write_publish_report_published_without_event_url(self):
         """Tournament with no event_url: name appears without a hyperlink."""
-        t = _make_tournament()
+        t = make_tournament()
         t2 = t.model_copy(update={"event_url": None})
         result = BatchPRResult(published=[t2.event_id or "unknown"])
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = publish_cmd._write_publish_report(result, Path(tmpdir), "2023-03-25", [t2])
+            path = publish_cmd._write_publish_report(  # pyright: ignore[reportPrivateUsage]
+                result,
+                Path(tmpdir),
+                "2023-03-25",
+                [t2],
+            )
             content = path.read_text()
         assert "Test Event" in content
 
@@ -317,11 +308,11 @@ class TestPublishCommand:
         """When all loaded tournaments pre-date 2020, nothing to publish."""
         from datetime import date as _date
 
-        t_old = _make_tournament()
+        t_old = make_tournament()
         t_old = t_old.model_copy(update={"date_start": _date(2019, 1, 1)})
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t_old, Path(tmpdir), overwrite=True)
 
@@ -333,17 +324,17 @@ class TestPublishCommand:
                 include_pre_2020=False,
                 verbose=False,
             )
-            with patch("vtes_scraper.cli.publish.publish_all_as_single_pr") as mock_pub:
+            with patch("channel_ten.cli.publish.publish_all_as_single_pr") as mock_pub:
                 ret = publish_cmd.run(args)
             mock_pub.assert_not_called()
         assert ret == 0
 
     def test_run_dry_run_prints_summary(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(dry_run=True, published=["9999"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -357,18 +348,18 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
         assert ret == 0
 
     def test_run_skipped_entries_printed(self):
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(published=["9999"], skipped=["8888"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -382,7 +373,7 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 ret = publish_cmd.run(args)
@@ -390,11 +381,11 @@ class TestPublishCommand:
 
     def test_run_report_write_failure_is_swallowed(self):
         """A crash in _write_publish_report must not abort the command."""
-        t = _make_tournament()
+        t = make_tournament()
         result = BatchPRResult(pr_url="https://github.com/pr/1", published=["9999"])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from vtes_scraper.output.yaml import write_tournament_yaml
+            from channel_ten.output.yaml import write_tournament_yaml
 
             write_tournament_yaml(t, Path(tmpdir), overwrite=True)
 
@@ -408,11 +399,11 @@ class TestPublishCommand:
                 verbose=False,
             )
             with patch(
-                "vtes_scraper.cli.publish.publish_all_as_single_pr",
+                "channel_ten.cli.publish.publish_all_as_single_pr",
                 return_value=result,
             ):
                 with patch(
-                    "vtes_scraper.cli.publish._write_publish_report",
+                    "channel_ten.cli.publish._write_publish_report",
                     side_effect=OSError("disk full"),
                 ):
                     ret = publish_cmd.run(args)

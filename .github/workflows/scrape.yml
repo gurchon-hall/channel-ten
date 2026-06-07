@@ -1,4 +1,4 @@
-name: Scrape VTES TWD
+name: Scrape TWD
 
 on:
   # Run on a schedule — every day at 06:00 UTC
@@ -25,7 +25,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "vtes_scraper/**"
+      - "channel_ten/**"
       - "pyproject.toml"
       - ".github/workflows/scrape.yml"
 
@@ -65,7 +65,7 @@ jobs:
       - name: Build scrape command
         id: build_cmd
         run: |
-          CMD="vtes-scraper scrape"
+          CMD="channel-ten scrape"
 
           START_PAGE="${{ github.event.inputs.start_page }}"
           if [ -z "$START_PAGE" ]; then

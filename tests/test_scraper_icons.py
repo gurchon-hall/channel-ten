@@ -7,14 +7,16 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from bs4 import BeautifulSoup, Tag
 
-import vtes_scraper.cli.scrape as _scrape_mod  # import directly, bypasses cli/__init__
-from vtes_scraper.scraper import (
+import channel_ten.cli.scrape as _scrape_mod  # import directly, bypasses cli/__init__
+from channel_ten.models import Tournament
+from channel_ten.scraper import (
     ICON_DEFAULT,
     ICON_IDEA,
     ICON_MERGED,
@@ -119,7 +121,8 @@ class TestDetectTopicIcon:
     def test_deep_nesting_exhausts_walk_loop(self):
         """8+ non-row ancestor divs exhaust the walk loop (branch 51->63)."""
         inner = (
-            f'<img src="{_ICON_BASE}default.png"><a href="/forum/event-reports-and-twd/123">X</a>'
+            f"<img src='{_ICON_BASE}default.png'>"
+            + "<a href='/forum/event-reports-and-twd/123'>X</a>"
         )
         html = "<div>" * 9 + inner + "</div>" * 9
         soup = BeautifulSoup(html, "lxml")
@@ -130,7 +133,7 @@ class TestDetectTopicIcon:
         soup = BeautifulSoup("", "lxml")
         tag = soup.new_tag("a")
         tag["href"] = "/forum/event-reports-and-twd/123-test"
-        assert detect_topic_icon(cast(Tag, tag)) is None
+        assert detect_topic_icon(tag) is None
 
     def test_unknown_icon_stem_returns_none(self):
         """Img with base URL but unrecognised stem exhausts inner loop (71->67)."""
@@ -149,7 +152,7 @@ class TestDetectTopicIcon:
 # ---------------------------------------------------------------------------
 
 
-def _make_tournament(event_id: str = "9999") -> MagicMock:
+def _make_mock_tournament(event_id: str = "9999") -> MagicMock:
     t = MagicMock()
     t.event_id = event_id
     t.name = f"Test Tournament {event_id}"
@@ -173,31 +176,27 @@ class TestScrapeCliRouting:
     @pytest.fixture(autouse=True)
     def _patch_pipeline_helpers(self):
         """Bypass calendar-winner, player-lookup, and krcg enrichment steps."""
+
+        def _fake_winner_check(
+            _client: httpx.Client, t: Tournament, _delay: float
+        ) -> tuple[Tournament, bool]:
+            return (t, False)
+
+        def _fake_player_lookup(_client: httpx.Client, t: Tournament, _delay: float) -> Tournament:
+            return t
+
+        def _fake_enrich_with_krcg(t: Tournament) -> Tournament:
+            return t
+
         with (
-            patch.object(
-                _scrape_mod,
-                "_check_calendar_winner",
-                side_effect=lambda _client, t, _delay: (t, False),
-            ),
-            patch.object(
-                _scrape_mod,
-                "_lookup_player",
-                side_effect=lambda _client, t, _delay: t,
-            ),
-            patch.object(
-                _scrape_mod,
-                "_enrich_with_krcg",
-                side_effect=lambda t: t,
-            ),
-            patch.object(
-                _scrape_mod,
-                "_validate_content",
-                return_value=[],
-            ),
+            patch.object(_scrape_mod, "_check_calendar_winner", side_effect=_fake_winner_check),
+            patch.object(_scrape_mod, "_lookup_player", side_effect=_fake_player_lookup),
+            patch.object(_scrape_mod, "_enrich_with_krcg", side_effect=_fake_enrich_with_krcg),
+            patch.object(_scrape_mod, "_validate_content", return_value=[]),
         ):
             yield
 
-    def _run(self, tmp_path: Path, yields: list[tuple]) -> int:
+    def _run(self, tmp_path: Path, yields: list[tuple[Any]]) -> int:
         """Invoke cli.scrape.run() with mocked scrape_forum."""
         scrape_mod = _scrape_mod
 
@@ -217,8 +216,8 @@ class TestScrapeCliRouting:
     # merged → changes_required/
     # ------------------------------------------------------------------
 
-    def test_merged_writes_to_changes_required(self, tmp_path):
-        t = _make_tournament("8001")
+    def test_merged_writes_to_changes_required(self, tmp_path: Path):
+        t = _make_mock_tournament("8001")
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -246,8 +245,8 @@ class TestScrapeCliRouting:
         expected = tmp_path / "changes_required" / "8001.yaml"
         assert expected.exists()
 
-    def test_merged_does_not_write_to_normal_dir(self, tmp_path):
-        t = _make_tournament("8002")
+    def test_merged_does_not_write_to_normal_dir(self, tmp_path: Path):
+        t = _make_mock_tournament("8002")
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -275,9 +274,9 @@ class TestScrapeCliRouting:
 
         mock_write.assert_not_called()
 
-    def test_merged_always_overwrites(self, tmp_path):
+    def test_merged_always_overwrites(self, tmp_path: Path):
         """merged files are always rewritten — no FileExistsError guard."""
-        t = _make_tournament("8003")
+        t = _make_mock_tournament("8003")
         (tmp_path / "changes_required").mkdir()
         (tmp_path / "changes_required" / "8003.yaml").write_text("old: content\n")
 
@@ -313,8 +312,8 @@ class TestScrapeCliRouting:
     # ------------------------------------------------------------------
 
     @pytest.mark.parametrize("icon", [ICON_DEFAULT, ICON_SOLVED, None])
-    def test_normal_icons_write_to_normal_dir(self, tmp_path, icon):
-        t = _make_tournament("8010")
+    def test_normal_icons_write_to_normal_dir(self, tmp_path: Path, icon: str | None):
+        t = _make_mock_tournament("8010")
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -325,26 +324,26 @@ class TestScrapeCliRouting:
             overwrite=False,
             verbose=False,
         )
-        written_paths = []
+        written_paths: list[Path] = []
+
+        def _fake_to_yaml(tournament: Tournament, output_dir: Path, **kwargs: Any) -> Path:
+            return _capture(
+                written_paths,
+                output_dir / "fake" / tournament.yaml_filename,
+            )
+
         with (
             patch.object(scrape_mod, "scrape_forum", return_value=iter([(t, icon)])),
-            patch.object(
-                scrape_mod,
-                "write_tournament_yaml",
-                side_effect=lambda tournament, output_dir, **kw: _capture(
-                    written_paths,
-                    output_dir / "fake" / tournament.yaml_filename,
-                ),
-            ),
+            patch.object(scrape_mod, "write_tournament_yaml", side_effect=_fake_to_yaml),
         ):
             scrape_mod.run(args)
 
         assert len(written_paths) == 1
 
     @pytest.mark.parametrize("icon", [ICON_DEFAULT, ICON_SOLVED, None])
-    def test_stale_changes_required_deleted(self, tmp_path, icon):
+    def test_stale_changes_required_deleted(self, tmp_path: Path, icon: str | None):
         """When a topic reverts from merged to default/solved, delete the stale copy."""
-        t = _make_tournament("8020")
+        t = _make_mock_tournament("8020")
         stale = tmp_path / "changes_required" / "8020.yaml"
         stale.parent.mkdir(parents=True)
         stale.write_text("stale: true\n")
@@ -374,9 +373,9 @@ class TestScrapeCliRouting:
         assert not stale.exists(), "stale changes_required file should have been deleted"
 
     @pytest.mark.parametrize("icon", [ICON_DEFAULT, ICON_SOLVED, None])
-    def test_no_stale_file_is_fine(self, tmp_path, icon):
+    def test_no_stale_file_is_fine(self, tmp_path: Path, icon: str | None):
         """No error when there is no stale changes_required file to delete."""
-        t = _make_tournament("8030")
+        t = _make_mock_tournament("8030")
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -403,7 +402,7 @@ class TestScrapeCliRouting:
     # Return codes
     # ------------------------------------------------------------------
 
-    def test_returns_zero_on_success(self, tmp_path):
+    def test_returns_zero_on_success(self, tmp_path: Path):
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -423,9 +422,9 @@ class TestScrapeCliRouting:
     # ------------------------------------------------------------------
 
     @pytest.mark.parametrize("icon", [ICON_DEFAULT, ICON_MERGED, ICON_SOLVED, None])
-    def test_missing_event_id_is_skipped(self, tmp_path, icon):
+    def test_missing_event_id_is_skipped(self, tmp_path: Path, icon: str | None):
         """A tournament with no event_id must be skipped, not crash."""
-        t = _make_tournament("")  # empty event_id → yaml_filename raises ValueError
+        t = _make_mock_tournament("")  # empty event_id → yaml_filename raises ValueError
         t.event_id = ""
         scrape_mod = _scrape_mod
 
@@ -447,8 +446,8 @@ class TestScrapeCliRouting:
         mock_write.assert_not_called()
         assert not (tmp_path / "changes_required").exists()
 
-    def test_returns_one_on_failure(self, tmp_path):
-        t = _make_tournament("9999")
+    def test_returns_one_on_failure(self, tmp_path: Path):
+        t = _make_mock_tournament("9999")
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
@@ -481,6 +480,6 @@ class TestScrapeCliRouting:
 # ---------------------------------------------------------------------------
 
 
-def _capture(lst: list, path: Path) -> Path:
+def _capture(lst: list[Path], path: Path) -> Path:
     lst.append(path)
     return path

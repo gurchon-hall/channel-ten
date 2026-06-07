@@ -1,17 +1,18 @@
-"""Tests for vtes_scraper.validator."""
+"""Tests for channel_ten.validator."""
 
 from datetime import date
+from typing import Any
 from unittest.mock import patch
 
-from vtes_scraper.models import (
+from channel_ten.models import (
     Crypt_Card_Dict,
     Deck_Dict,
     Library_Card_Dict,
     Library_Section_Dict,
     Tournament_Dict,
 )
-from vtes_scraper.validator import (
-    _pick_best_crypt_version,
+from channel_ten.validator import (
+    _pick_best_crypt_version,  # pyright: ignore[reportPrivateUsage]
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
@@ -19,7 +20,7 @@ from vtes_scraper.validator import (
 )
 
 
-def _deck(**kwargs) -> Deck_Dict:
+def _deck(**kwargs: Any) -> Deck_Dict:
     base = Deck_Dict(
         crypt_count=2,
         crypt=[
@@ -47,7 +48,7 @@ def _deck(**kwargs) -> Deck_Dict:
     return base
 
 
-def _tournament(**kwargs) -> Tournament_Dict:
+def _tournament(**kwargs: Any) -> Tournament_Dict:
     base = Tournament_Dict(
         name="Test Event",
         location="Paris, France",
@@ -330,21 +331,21 @@ class TestParseDateField:
 # ---------------------------------------------------------------------------
 
 
-def _make_deck_with_sections(sections) -> Deck_Dict:
+def _make_deck_with_sections(sections: list[Library_Section_Dict]) -> Deck_Dict:
     """Build a minimal deck dict with given library_sections."""
-    total = sum(s["count"] for s in sections)
+    total = sum(s["count"] or 0 for s in sections)
     return Deck_Dict(
         library_count=total,
         library_sections=sections,
     )
 
 
-def _section(name, cards) -> Library_Section_Dict:
+def _section(name: str, cards: list[Library_Card_Dict]) -> Library_Section_Dict:
     count = sum(c["count"] for c in cards)
     return Library_Section_Dict(name=name, count=count, cards=cards)
 
 
-def _card(name, count=1) -> Library_Card_Dict:
+def _card(name: str, count: int = 1) -> Library_Card_Dict:
     return Library_Card_Dict(name=name, count=count)
 
 
@@ -363,15 +364,17 @@ def _fake_krcg_section(card_name: str):
 
 
 class TestFixCardSections:
-    def _patch_krcg(self, available=True):
+    def _patch_krcg(self, available: bool = True):
         """Return a context-manager stack that fakes krcg availability."""
         import contextlib
 
         @contextlib.contextmanager
         def _ctx():
-            krcg_fn = _fake_krcg_section if available else (lambda _: None)
+            krcg_fn = (  # pyright: ignore[reportUnknownVariableType]
+                _fake_krcg_section if available else (lambda _: None)  # pyright: ignore[reportUnknownLambdaType]
+            )
             with patch(
-                "vtes_scraper.validator.get_library_card_type",
+                "channel_ten.validator.get_library_card_type",
                 side_effect=krcg_fn,
             ):
                 yield
@@ -490,7 +493,7 @@ class TestFixCardSections:
 # ---------------------------------------------------------------------------
 
 # Fake krcg data used in tests: card name → single dict or list of dicts (multi-version)
-_FAKE_CRYPT_KRCG: dict[str, dict | list] = {
+_FAKE_CRYPT_KRCG: dict[str, dict[str, str | int | None] | list[dict[str, str | int | None]]] = {
     "Nathan Turner": {
         "capacity": 4,
         "disciplines": "PRO ani",
@@ -530,17 +533,16 @@ _FAKE_CRYPT_KRCG: dict[str, dict | list] = {
 }
 
 
-def _fake_krcg_all_crypt_data(card_name: str) -> list[dict]:
+def _fake_krcg_all_crypt_data(card_name: str) -> list[dict[str, str | int | None]]:
     data = _FAKE_CRYPT_KRCG.get(card_name)
     if data is None:
         return []
-    # Support multi-version entries stored as a list
     if isinstance(data, list):
         return data
     return [data]
 
 
-def _crypt_card(name: str, count: int = 2, **overrides) -> Crypt_Card_Dict:
+def _crypt_card(name: str, count: int = 2, **overrides: Any) -> Crypt_Card_Dict:
     base = Crypt_Card_Dict(
         count=count,
         name=name,
@@ -562,9 +564,11 @@ class TestEnrichCryptCards:
 
         @contextlib.contextmanager
         def _ctx():
-            krcg_fn = _fake_krcg_all_crypt_data if available else (lambda _: [])
+            krcg_fn = (  # pyright: ignore[reportUnknownVariableType]
+                _fake_krcg_all_crypt_data if available else (lambda _: [])  # pyright: ignore[reportUnknownLambdaType]
+            )
             with patch(
-                "vtes_scraper.validator.get_all_vamp_variants",
+                "channel_ten.validator.get_all_vamp_variants",
                 side_effect=krcg_fn,
             ):
                 yield
@@ -781,7 +785,7 @@ class TestEnrichCryptCards:
 
 
 class TestPickBestCryptVersion:
-    def _v(self, grouping) -> Crypt_Card_Dict:
+    def _v(self, grouping: int) -> Crypt_Card_Dict:
         return Crypt_Card_Dict(
             capacity=5,
             disciplines="",

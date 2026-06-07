@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from vtes_scraper.cli import _build_parser, main
-from vtes_scraper.cli._common import reconfigure_windows_stdio, setup_logging
+from channel_ten.cli import _build_parser, main  # pyright: ignore[reportPrivateUsage]
+from channel_ten.cli._common import reconfigure_windows_stdio, setup_logging
 
 # ---------------------------------------------------------------------------
 # _build_parser / main
@@ -40,9 +40,9 @@ class TestBuildParser:
 class TestMain:
     def test_main_dispatches_and_exits(self):
         with (
-            patch("sys.argv", ["vtes-scraper", "scrape"]),
-            patch("vtes_scraper.cli.reconfigure_windows_stdio"),
-            patch("vtes_scraper.cli.scrape.run", return_value=0) as mock_run,
+            patch("sys.argv", ["channel-ten", "scrape"]),
+            patch("channel_ten.cli.reconfigure_windows_stdio"),
+            patch("channel_ten.cli.scrape.run", return_value=0) as mock_run,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
@@ -60,7 +60,7 @@ class TestReconfigureWindowsStdio:
         import sys as real_sys
 
         original_stdout = real_sys.stdout
-        with patch("vtes_scraper.cli._common.sys") as mock_sys:
+        with patch("channel_ten.cli._common.sys") as mock_sys:
             mock_sys.platform = "linux"
             reconfigure_windows_stdio()
         # Real sys.stdout must be untouched
@@ -71,7 +71,7 @@ class TestReconfigureWindowsStdio:
         fake_stdout = io.TextIOWrapper(fake_buffer)
         fake_stderr_buffer = io.BytesIO(b"")
         fake_stderr = io.TextIOWrapper(fake_stderr_buffer)
-        with patch("vtes_scraper.cli._common.sys") as mock_sys:
+        with patch("channel_ten.cli._common.sys") as mock_sys:
             mock_sys.platform = "win32"
             mock_sys.stdout = fake_stdout
             mock_sys.stderr = fake_stderr
@@ -83,7 +83,7 @@ class TestReconfigureWindowsStdio:
     def test_skips_when_no_buffer(self):
         no_buffer_stdout = io.StringIO()
         no_buffer_stderr = io.StringIO()
-        with patch("vtes_scraper.cli._common.sys") as mock_sys:
+        with patch("channel_ten.cli._common.sys") as mock_sys:
             mock_sys.platform = "win32"
             mock_sys.stdout = no_buffer_stdout
             mock_sys.stderr = no_buffer_stderr
@@ -98,15 +98,15 @@ class TestReconfigureWindowsStdio:
 
 
 class TestDunderMain:
-    """Cover vtes_scraper/cli/__main__.py (the `python -m vtes_scraper.cli` entry point)."""
+    """Cover channel_ten/cli/__main__.py (the `python -m channel_ten.cli` entry point)."""
 
     def test_main_called_via_run_module(self):
         with (
-            patch("vtes_scraper.cli.main") as mock_main,
+            patch("channel_ten.cli.main") as mock_main,
         ):
             mock_main.side_effect = SystemExit(0)
             with pytest.raises(SystemExit):
-                runpy.run_module("vtes_scraper.cli", run_name="__main__")
+                runpy.run_module("channel_ten.cli", run_name="__main__")
             mock_main.assert_called_once()
 
 
@@ -118,11 +118,11 @@ class TestDunderMain:
 class TestSetupLogging:
     def test_verbose_false(self):
         setup_logging(False)
-        logger = logging.getLogger("vtes_scraper")
-        # In non-verbose mode, vtes_scraper logger should NOT be at DEBUG
+        logger = logging.getLogger("channel_ten")
+        # In non-verbose mode, channel_ten logger should NOT be at DEBUG
         assert logger.level != logging.DEBUG
 
     def test_verbose_true(self):
         setup_logging(True)
-        logger = logging.getLogger("vtes_scraper")
+        logger = logging.getLogger("channel_ten")
         assert logger.level == logging.DEBUG

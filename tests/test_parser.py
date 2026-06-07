@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from vtes_scraper.parser import parse_twd_text
+from channel_ten.parser import parse_twd_text
 
 # ---------------------------------------------------------------------------
 # Fixtures — real examples from the README
@@ -150,11 +150,11 @@ class TestOptionalFields:
 
     def test_created_by(self):
         t = parse_twd_text(EXAMPLE_SIMPLE)
-        assert t.deck.created_by == "Bobby Lemon"
+        assert t.deck and t.deck.created_by == "Bobby Lemon"
 
     def test_description(self):
         t = parse_twd_text(EXAMPLE_SIMPLE)
-        assert "great deck" in t.deck.description
+        assert t.deck and "great deck" in t.deck.description
 
 
 # ---------------------------------------------------------------------------
@@ -178,14 +178,15 @@ class TestHashComments:
 class TestCryptParsing:
     def test_crypt_count(self):
         t = parse_twd_text(EXAMPLE_FULL)
-        assert t.deck.crypt_count == 12
+        assert t.deck and t.deck.crypt_count == 12
 
     def test_crypt_cards_parsed(self):
         t = parse_twd_text(EXAMPLE_FULL)
-        assert len(t.deck.crypt) == 3
+        assert t.deck and len(t.deck.crypt) == 3
 
     def test_crypt_card_fields(self):
         t = parse_twd_text(EXAMPLE_FULL)
+        assert t.deck
         nathan = t.deck.crypt[0]
         assert nathan.count == 2
         assert nathan.name == "Nathan Turner"
@@ -222,10 +223,11 @@ Master (1)
 class TestCryptCompactFormat:
     def test_card_count(self):
         t = parse_twd_text(EXAMPLE_COMPACT_CRYPT)
-        assert len(t.deck.crypt) == 2
+        assert t.deck and len(t.deck.crypt) == 2
 
     def test_card_fields(self):
         t = parse_twd_text(EXAMPLE_COMPACT_CRYPT)
+        assert t.deck
         card = t.deck.crypt[0]
         assert card.count == 2
         assert card.name == "Nathan Turner"
@@ -237,12 +239,14 @@ class TestCryptCompactFormat:
     def test_multi_discipline(self):
         t = parse_twd_text(EXAMPLE_COMPACT_CRYPT)
         # "2x Nathan Turner 4 PRO ani Gangrel:6" has two disciplines
+        assert t.deck
         card = t.deck.crypt[0]
         assert "PRO" in card.disciplines
         assert "ani" in card.disciplines
 
     def test_single_discipline(self):
         t = parse_twd_text(EXAMPLE_COMPACT_CRYPT)
+        assert t.deck
         indira = t.deck.crypt[1]
         assert indira.name == "Indira"
         assert indira.capacity == 3
@@ -277,16 +281,16 @@ Master (1)
 class TestMultiWordClan:
     def test_clan_with_space(self):
         t = parse_twd_text(EXAMPLE_ANTITRIBU_CLAN)
-        assert t.deck.crypt[0].clan == "Brujah antitribu"
+        assert t.deck and t.deck.crypt[0].clan == "Brujah antitribu"
 
     def test_all_cards_parsed(self):
         t = parse_twd_text(EXAMPLE_ANTITRIBU_CLAN)
-        assert len(t.deck.crypt) == 3
+        assert t.deck and len(t.deck.crypt) == 3
 
     def test_grouping(self):
         t = parse_twd_text(EXAMPLE_ANTITRIBU_CLAN)
-        assert t.deck.crypt[0].grouping == 3
-        assert t.deck.crypt[1].grouping == 2
+        assert t.deck and t.deck.crypt[0].grouping == 3
+        assert t.deck and t.deck.crypt[1].grouping == 2
 
 
 # ---------------------------------------------------------------------------
@@ -321,31 +325,35 @@ Master (1)
 class TestTitleParsing:
     def test_baron_title_extracted(self):
         t = parse_twd_text(EXAMPLE_WITH_TITLES)
+        assert t.deck
         aline = t.deck.crypt[0]
         assert aline.title == "baron"
         assert aline.clan == "Brujah"
 
     def test_justicar_title_extracted(self):
         t = parse_twd_text(EXAMPLE_WITH_TITLES)
+        assert t.deck
         dmitra = t.deck.crypt[1]
         assert dmitra.title == "justicar"
         assert dmitra.clan == "Brujah"
 
     def test_prince_title_extracted(self):
         t = parse_twd_text(EXAMPLE_WITH_TITLES)
+        assert t.deck
         tara = t.deck.crypt[2]
         assert tara.title == "prince"
         assert tara.clan == "Brujah"
 
     def test_1vote_title_extracted(self):
         t = parse_twd_text(EXAMPLE_WITH_TITLES)
+        assert t.deck
         thucimia = t.deck.crypt[3]
         assert thucimia.title == "1 vote"
         assert thucimia.clan == "Banu Haqim"
 
     def test_no_title_is_none(self):
         t = parse_twd_text(EXAMPLE_ANTITRIBU_CLAN)
-        assert t.deck.crypt[0].title is None
+        assert t.deck and t.deck.crypt[0].title is None
 
 
 # ---------------------------------------------------------------------------
@@ -356,18 +364,19 @@ class TestTitleParsing:
 class TestLibraryParsing:
     def test_library_count(self):
         t = parse_twd_text(EXAMPLE_FULL)
-        assert t.deck.library_count == 89
+        assert t.deck and t.deck.library_count == 89
 
     def test_library_section_name(self):
         t = parse_twd_text(EXAMPLE_FULL)
-        assert t.deck.library_sections[0].name == "Master"
+        assert t.deck and t.deck.library_sections[0].name == "Master"
 
     def test_library_section_count(self):
         t = parse_twd_text(EXAMPLE_FULL)
-        assert t.deck.library_sections[0].count == 14
+        assert t.deck and t.deck.library_sections[0].count == 14
 
     def test_library_card_with_comment(self):
         t = parse_twd_text(EXAMPLE_FULL)
+        assert t.deck
         anarch_press = t.deck.library_sections[0].cards[0]
         assert anarch_press.name == "Anarch Free Press, The"
         assert anarch_press.comment == "does not provide a free press!"
@@ -418,7 +427,7 @@ class TestParseHeaderStrict:
 
     def test_non_player_count_raises(self):
         """Line 4 not matching PLAYERS_RE raises ValueError."""
-        from vtes_scraper.parser._header import _parse_header_strict
+        from channel_ten.parser._header import parse_header_strict
 
         lines = [
             "Event Name",
@@ -430,11 +439,11 @@ class TestParseHeaderStrict:
             "https://www.vekn.net/event-calendar/event/123",
         ]
         with pytest.raises(ValueError, match="not player count"):
-            _parse_header_strict(lines)
+            parse_header_strict(lines)
 
     def test_non_vekn_url_raises(self):
         """Line 6 not containing vekn.net raises ValueError."""
-        from vtes_scraper.parser._header import _parse_header_strict
+        from channel_ten.parser._header import parse_header_strict
 
         lines = [
             "Event Name",
@@ -446,7 +455,7 @@ class TestParseHeaderStrict:
             "http://example.com/event/123",
         ]
         with pytest.raises(ValueError, match="not vekn URL"):
-            _parse_header_strict(lines)
+            parse_header_strict(lines)
 
 
 class TestParseHeaderLenient:
@@ -454,7 +463,7 @@ class TestParseHeaderLenient:
 
     def test_second_vekn_url_is_skipped(self):
         """When two vekn.net URLs appear, only the first is stored."""
-        from vtes_scraper.parser._header import _parse_header_lenient
+        from channel_ten.parser._header import parse_header_lenient
 
         lines = [
             "Event Name",
@@ -466,13 +475,15 @@ class TestParseHeaderLenient:
             "https://www.vekn.net/event-calendar/event/123",
             "https://www.vekn.net/event-calendar/event/456",
         ]
-        result = _parse_header_lenient(lines)
-        assert "123" in result["event_url"]
-        assert "456" not in result["event_url"]
+        result = parse_header_lenient(lines)
+        assert "123" in result.event_url
+        assert "456" not in result.event_url
 
     def test_all_labeled_no_name_raises(self):
         """When all lines are classified (unlabeled empty), missing name raises."""
-        from vtes_scraper.parser._header import _parse_header_lenient
+        from channel_ten.parser._header import (
+            parse_header_lenient,
+        )
 
         lines = [
             "2R+F",
@@ -480,7 +491,7 @@ class TestParseHeaderLenient:
             "https://www.vekn.net/event-calendar/event/123",
         ]
         with pytest.raises(ValueError, match="missing"):
-            _parse_header_lenient(lines)
+            parse_header_lenient(lines)
 
 
 class TestBlankLineStripping:

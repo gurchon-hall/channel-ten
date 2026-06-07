@@ -1,4 +1,4 @@
-name: Validate VTES TWD
+name: Channel 10 — Validate scraped TWD
 
 on:
   # Run every Sunday at 20:00 UTC
@@ -55,7 +55,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.full_validation }}" == "true" ]]; then
             FLAGS="$FLAGS --full-validation"
           fi
-          vtes-scraper validate $FLAGS
+          channel-ten validate $FLAGS
 
       - name: Check for changes
         id: git_status

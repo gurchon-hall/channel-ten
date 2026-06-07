@@ -1,71 +1,58 @@
-"""Tests for vtes_scraper.output modules."""
+"""Tests for channel_ten.output modules."""
 
 import tempfile
 from datetime import date
 from pathlib import Path
 
 import pytest
+from conftest import make_tournament
 
-from vtes_scraper.models import (
+from channel_ten.models import (
     CryptCard,
     Deck,
     LibraryCard,
     LibrarySection,
-    Tournament,
 )
-from vtes_scraper.output._common import date_subdir
-from vtes_scraper.output.txt import (
-    _fmt_crypt_card,
-    _fmt_date,
-    _fmt_library_section,
+from channel_ten.output._common import date_subdir
+from channel_ten.output.txt import (
+    _fmt_crypt_card,  # pyright: ignore[reportPrivateUsage]
+    _fmt_date,  # pyright: ignore[reportPrivateUsage]
+    _fmt_library_section,  # pyright: ignore[reportPrivateUsage]
     tournament_to_txt,
     write_tournament_txt,
 )
-from vtes_scraper.output.yaml import (
+from channel_ten.output.yaml import (
     tournament_to_yaml_str,
     write_tournament_yaml,
 )
 
-
-def _make_tournament(**kwargs) -> Tournament:
-    defaults = dict(
-        name="Test Event",
-        location="Paris, France",
-        date_start=date(2023, 3, 25),
-        rounds_format="3R+F",
-        players_count=15,
-        winner="Jane Doe",
-        event_url="https://www.vekn.net/event-calendar/event/9999",
-        deck=Deck(
-            name="Test Deck",
-            created_by="John Smith",
-            description="A test description.",
-            crypt=[
-                CryptCard(
-                    count=2,
-                    name="Nathan Turner",
-                    capacity=4,
-                    disciplines="PRO ani",
-                    clan="Gangrel",
-                    grouping=6,
-                ),
-            ],
-            crypt_count=2,
-            crypt_min=4,
-            crypt_max=4,
-            crypt_avg=4.0,
-            library_sections=[
-                LibrarySection(
-                    name="Master",
-                    count=1,
-                    cards=[LibraryCard(count=1, name="Blood Doll")],
-                )
-            ],
-            library_count=1,
+_OUTPUT_DECK = Deck(
+    name="Test Deck",
+    created_by="John Smith",
+    description="A test description.",
+    crypt=[
+        CryptCard(
+            count=2,
+            name="Nathan Turner",
+            capacity=4,
+            disciplines="PRO ani",
+            clan="Gangrel",
+            grouping=6,
         ),
-    )
-    defaults.update(kwargs)
-    return Tournament.model_validate(defaults)
+    ],
+    crypt_count=2,
+    crypt_min=4,
+    crypt_max=4,
+    crypt_avg=4.0,
+    library_sections=[
+        LibrarySection(
+            name="Master",
+            count=1,
+            cards=[LibraryCard(count=1, name="Blood Doll")],
+        )
+    ],
+    library_count=1,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -75,12 +62,12 @@ def _make_tournament(**kwargs) -> Tournament:
 
 class TestDateSubdir:
     def test_returns_year_month_path(self):
-        t = _make_tournament(date_start=date(2023, 3, 25))
+        t = make_tournament(deck=_OUTPUT_DECK, date_start=date(2023, 3, 25))
         result = date_subdir(t)
         assert result == Path("2023/03")
 
     def test_single_digit_month_padded(self):
-        t = _make_tournament(date_start=date(2023, 1, 5))
+        t = make_tournament(deck=_OUTPUT_DECK, date_start=date(2023, 1, 5))
         result = date_subdir(t)
         assert result == Path("2023/01")
 
@@ -310,7 +297,7 @@ class TestFmtLibrarySection:
 
 class TestTournamentToTxt:
     def test_includes_mandatory_fields(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "Test Event" in txt
         assert "Paris, France" in txt
@@ -320,19 +307,21 @@ class TestTournamentToTxt:
         assert "https://www.vekn.net/event-calendar/event/9999" in txt
 
     def test_multiday_date(self):
-        t = _make_tournament(date_start=date(2023, 3, 25), date_end=date(2023, 3, 26))
+        t = make_tournament(
+            deck=_OUTPUT_DECK, date_start=date(2023, 3, 25), date_end=date(2023, 3, 26)
+        )
         txt = tournament_to_txt(t)
         assert " -- " in txt
         assert "March 25th 2023" in txt
         assert "March 26th 2023" in txt
 
     def test_deck_name_included(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "Deck Name: Test Deck" in txt
 
     def test_created_by_when_different_from_winner(self):
-        t = _make_tournament(winner="Jane Doe")
+        t = make_tournament(deck=_OUTPUT_DECK, winner="Jane Doe")
         # deck.created_by = "John Smith" (different from winner)
         txt = tournament_to_txt(t)
         assert "Created by: John Smith" in txt
@@ -364,12 +353,12 @@ class TestTournamentToTxt:
             ],
             library_count=1,
         )
-        t = _make_tournament(winner="Jane Doe", deck=deck)
+        t = make_tournament(winner="Jane Doe", deck=deck)
         txt = tournament_to_txt(t)
         assert "Created by:" not in txt
 
     def test_description_included(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "Description:" in txt
         assert "A test description." in txt
@@ -399,22 +388,22 @@ class TestTournamentToTxt:
             ],
             library_count=1,
         )
-        t = _make_tournament(deck=deck)
+        t = make_tournament(deck=deck)
         txt = tournament_to_txt(t)
         assert "Deck Name:" not in txt
 
     def test_crypt_header_present(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "Crypt (" in txt
 
     def test_library_header_present(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "Library (" in txt
 
     def test_avg_trailing_zeros_stripped(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         txt = tournament_to_txt(t)
         assert "avg=4" in txt  # 4.00 becomes "4"
 
@@ -426,21 +415,21 @@ class TestTournamentToTxt:
 
 class TestWriteTournamentTxt:
     def test_writes_file(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = write_tournament_txt(t, Path(tmpdir))
             assert path.exists()
             assert path.read_text(encoding="utf-8").startswith("Test Event")
 
     def test_raises_if_exists_no_overwrite(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             write_tournament_txt(t, Path(tmpdir))
             with pytest.raises(FileExistsError):
                 write_tournament_txt(t, Path(tmpdir), overwrite=False)
 
     def test_overwrites_when_flag_set(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             write_tournament_txt(t, Path(tmpdir))
             path = write_tournament_txt(t, Path(tmpdir), overwrite=True)
@@ -454,13 +443,13 @@ class TestWriteTournamentTxt:
 
 class TestTournamentToYamlStr:
     def test_returns_string(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         result = tournament_to_yaml_str(t)
         assert isinstance(result, str)
         assert "Test Event" in result
 
     def test_contains_required_keys(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         result = tournament_to_yaml_str(t)
         assert "name:" in result
         assert "location:" in result
@@ -492,13 +481,13 @@ class TestTournamentToYamlStr:
             ],
             library_count=1,
         )
-        t = _make_tournament(deck=deck)
+        t = make_tournament(deck=deck)
         result = tournament_to_yaml_str(t)
         # ruamel.yaml renders LiteralScalarString with | block scalar
         assert "|" in result
 
     def test_single_line_description_not_literal(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         result = tournament_to_yaml_str(t)
         # Single-line description should not use block scalar in this key
         # Just verify it renders without error
@@ -506,7 +495,7 @@ class TestTournamentToYamlStr:
 
     def test_date_rendered_without_quotes(self):
         """date_start must be a bare YAML date, not a quoted string."""
-        t = _make_tournament(date_start=date(2026, 3, 15))
+        t = make_tournament(deck=_OUTPUT_DECK, date_start=date(2026, 3, 15))
         result = tournament_to_yaml_str(t)
         # YAML date: `date_start: 2026-03-15` (no surrounding quotes)
         assert "date_start: 2026-03-15" in result
@@ -514,7 +503,10 @@ class TestTournamentToYamlStr:
 
     def test_event_id_rendered_as_int(self):
         """event_id must be a bare integer, not a quoted string."""
-        t = _make_tournament(event_url="https://www.vekn.net/event-calendar/event/9999")
+        t = make_tournament(
+            deck=_OUTPUT_DECK,
+            event_url="https://www.vekn.net/event-calendar/event/9999",
+        )
         result = tournament_to_yaml_str(t)
         assert "event_id: 9999" in result
         assert "event_id: '9999'" not in result
@@ -527,21 +519,21 @@ class TestTournamentToYamlStr:
 
 class TestWriteTournamentYaml:
     def test_writes_file(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = write_tournament_yaml(t, Path(tmpdir))
             assert path.exists()
             assert "Test Event" in path.read_text(encoding="utf-8")
 
     def test_raises_if_exists_no_overwrite(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             write_tournament_yaml(t, Path(tmpdir))
             with pytest.raises(FileExistsError):
                 write_tournament_yaml(t, Path(tmpdir), overwrite=False)
 
     def test_overwrites_when_flag_set(self):
-        t = _make_tournament()
+        t = make_tournament(deck=_OUTPUT_DECK)
         with tempfile.TemporaryDirectory() as tmpdir:
             write_tournament_yaml(t, Path(tmpdir))
             path = write_tournament_yaml(t, Path(tmpdir), overwrite=True)

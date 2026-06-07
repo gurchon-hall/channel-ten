@@ -23,7 +23,7 @@ repos:
       #   name: mypy
       #   entry: python -m mypy
       #   language: system
-      #   args: [vtes_scraper/]
+      #   args: [channel_ten/]
       #   pass_filenames: false
       #   always_run: true
 
@@ -37,7 +37,7 @@ repos:
       # CLI smoke tests — verify each subcommand loads and parses args cleanly
       - id: cli-smoke-scrape
         name: "cli smoke: scrape --help"
-        entry: python -m vtes_scraper.cli
+        entry: python -m channel_ten.cli
         args: [scrape, --help]
         language: system
         pass_filenames: false
@@ -45,7 +45,7 @@ repos:
 
       - id: cli-smoke-parse
         name: "cli smoke: parse --help"
-        entry: python -m vtes_scraper.cli
+        entry: python -m channel_ten.cli
         args: [parse, --help]
         language: system
         pass_filenames: false
@@ -53,7 +53,7 @@ repos:
 
       - id: cli-smoke-publish
         name: "cli smoke: publish --help"
-        entry: python -m vtes_scraper.cli
+        entry: python -m channel_ten.cli
         args: [publish, --help]
         language: system
         pass_filenames: false
@@ -61,7 +61,7 @@ repos:
 
       - id: cli-smoke-validate
         name: "cli smoke: validate --help"
-        entry: python -m vtes_scraper.cli
+        entry: python -m channel_ten.cli
         args: [validate, --help]
         language: system
         pass_filenames: false
