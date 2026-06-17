@@ -1,3 +1,6 @@
+# TWD data (stored in gurchon-hall/eternal-vigilance)
+twds/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

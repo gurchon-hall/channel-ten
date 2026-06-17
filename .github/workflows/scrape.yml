@@ -41,13 +41,20 @@ jobs:
     needs: pre-commit
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # needed to commit output files
+      contents: write   # needed to push to eternal-vigilance
 
     steps:
-      - name: Checkout repository
+      - name: Checkout channel-ten
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history for clean diffs
+          path: channel-ten
+
+      - name: Checkout eternal-vigilance
+        uses: actions/checkout@v4
+        with:
+          repository: gurchon-hall/eternal-vigilance
+          token: ${{ secrets.PAT_TOKEN }}
+          path: eternal-vigilance
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -60,12 +67,12 @@ jobs:
         run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e "./channel-ten[dev]"
 
       - name: Build scrape command
         id: build_cmd
         run: |
-          CMD="channel-ten scrape"
+          CMD="channel-ten scrape --output-dir eternal-vigilance"
 
           START_PAGE="${{ github.event.inputs.start_page }}"
           if [ -z "$START_PAGE" ]; then
@@ -91,8 +98,9 @@ jobs:
 
       - name: Check for new files
         id: git_status
+        working-directory: eternal-vigilance
         run: |
-          git add twds/
+          git add -A
           if git diff --staged --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -102,6 +110,7 @@ jobs:
 
       - name: Commit and push new YAML files
         if: steps.git_status.outputs.changed == 'true'
+        working-directory: eternal-vigilance
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

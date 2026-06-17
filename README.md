@@ -9,7 +9,9 @@ Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net
 
 ## Data format
 
-Each tournament produces one YAML file named `{event_id}.yaml` where `event_id` is the numeric id from the VEKN event calendar URL (e.g. `/event/8470` → `8470.yaml`). Files are stored under `twds/YYYY/MM/` by default.
+Each tournament produces one YAML file named `{event_id}.yaml` where `event_id` is the numeric id from the VEKN event calendar URL (e.g. `/event/8470` → `8470.yaml`).
+
+Data files are stored in the dedicated repository [gurchon-hall/eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance), organized as `YYYY/MM/<event_id>.yaml`.
 
 This convention mirrors the [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) archive, which uses `decks/{event_id}.txt`.
 
@@ -44,8 +46,8 @@ channel-ten scrape --start-page 5 --last-page 6
 # Overwrite existing YAML files
 channel-ten scrape --overwrite
 
-# Write output to a custom directory
-channel-ten scrape --output-dir path/to/dir
+# Write output to a custom directory (e.g. a local clone of eternal-vigilance)
+channel-ten scrape --output-dir ../eternal-vigilance
 
 # Parse a single local .txt file to YAML (prints to stdout)
 channel-ten parse decks/8470.txt
@@ -124,19 +126,19 @@ The workflow in `.github/workflows/scrape.yml`:
 - Runs daily at 06:00 UTC
 - Also triggered on push to `main` when source files change
 - Can be triggered manually with optional `start_page`, `last_page`, and `overwrite` inputs
-- Runs tests, scrapes the forum, and commits new YAML files automatically
+- Scrapes the forum and commits new YAML files to [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance)
 
 The workflow in `.github/workflows/validate.yml`:
 
 - Runs every Sunday at 20:00 UTC
 - Can be triggered manually with an optional `full_validation` boolean input
-- Re-validates all published YAML files, enriches them via krcg, and commits any updates
+- Re-validates all published YAML files in eternal-vigilance, enriches them via krcg, and commits any updates
 
 The workflow in `.github/workflows/publish.yml`:
 
 - Runs every Monday at 08:00 UTC
 - Can be triggered manually
-- Runs tests, then publishes all new decks to the GiottoVerducci/TWD repository as a single PR
+- Reads decks from eternal-vigilance, publishes new decks to [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR
 - Commits a Markdown publish report to `publish/YYYY/MM/`
 
 The workflow in `.github/workflows/pre-commit.yml`:
@@ -225,7 +227,7 @@ tests/
 ├── test_scraper.py
 ├── test_scraper_icons.py
 └── test_validator.py
-twds/                      # Scraped YAML files (YYYY/MM/<event_id>.yaml)
+                               # TWD data lives in gurchon-hall/eternal-vigilance
 publish/                   # Markdown publish reports (YYYY/MM/<date>.md)
 .github/
 └── workflows/
