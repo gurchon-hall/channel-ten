@@ -139,7 +139,7 @@ The workflow in `.github/workflows/publish.yml`:
 - Runs every Monday at 08:00 UTC
 - Can be triggered manually
 - Reads decks from eternal-vigilance, publishes new decks to [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR
-- Commits a Markdown publish report to `publish/YYYY/MM/`
+- Commits a Markdown publish report to `eternal-vigilance/publish/YYYY/MM/`
 
 The workflow in `.github/workflows/pre-commit.yml`:
 
@@ -227,8 +227,7 @@ tests/
 ├── test_scraper.py
 ├── test_scraper_icons.py
 └── test_validator.py
-                               # TWD data lives in gurchon-hall/eternal-vigilance
-publish/                   # Markdown publish reports (YYYY/MM/<date>.md)
+                               # TWD data and publish reports live in gurchon-hall/eternal-vigilance
 .github/
 └── workflows/
     ├── scrape.yml         # CRON scrape at 06:00 UTC every day
