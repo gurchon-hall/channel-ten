@@ -1,5 +1,6 @@
-# TWD data (stored in gurchon-hall/eternal-vigilance)
+# Data and reports (stored in gurchon-hall/eternal-vigilance)
 twds/
+publish/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

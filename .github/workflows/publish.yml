@@ -66,7 +66,7 @@ jobs:
         run: channel-ten publish --twds-dir eternal-vigilance --verbose
 
       - name: Commit publish report
-        working-directory: channel-ten
+        working-directory: eternal-vigilance
         run: |
           git add publish/
           if git diff --staged --quiet; then
