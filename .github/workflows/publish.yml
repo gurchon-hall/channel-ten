@@ -19,8 +19,17 @@ jobs:
       contents: write   # needed to commit the publish report back to this repo
 
     steps:
-      - name: Checkout repository
+      - name: Checkout channel-ten
         uses: actions/checkout@v4
+        with:
+          path: channel-ten
+
+      - name: Checkout eternal-vigilance
+        uses: actions/checkout@v4
+        with:
+          repository: gurchon-hall/eternal-vigilance
+          token: ${{ secrets.PAT_TOKEN }}
+          path: eternal-vigilance
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,11 +42,12 @@ jobs:
         run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e "./channel-ten[dev]"
 
-      - name: Commit updated TWDs to GiottoVerducci/TWD
+      - name: Commit updated TWDs to eternal-vigilance
+        working-directory: eternal-vigilance
         run: |
-          git add twds/
+          git add -A
           if git diff --staged --quiet; then
             echo "No TWD changes to commit."
           else
@@ -53,9 +63,10 @@ jobs:
           # The script forks GiottoVerducci/TWD into the token owner's account
           # and opens a PR from the fork — no direct write access to that repo needed.
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: channel-ten publish --verbose
+        run: channel-ten publish --twds-dir eternal-vigilance --verbose
 
       - name: Commit publish report
+        working-directory: channel-ten
         run: |
           git add publish/
           if git diff --staged --quiet; then
