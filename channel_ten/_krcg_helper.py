@@ -18,6 +18,20 @@ _seen_cards: set[str | int] = set()
 _cards_loaded: dict[str | int, Any] = {}
 
 _LEADING_THE_RE = re.compile(r"^[Tt]he\s+(.+)$")
+# Trailing crypt group marker, e.g. " (G3)" or " (G6 ADV)". The group number is
+# stored separately in the YAML, so the group part is redundant — and a bare "(G3)"
+# left in the name breaks the exact-match resolution done by downstream consumers.
+# An ``ADV`` flag inside the marker is kept (re-emitted as " (ADV)") so an advanced
+# vampire is not silently downgraded to its base version. A lone "(ADV)" never
+# matches and is left intact.
+_GROUP_SUFFIX_RE = re.compile(r"\s*\(G\d+(?P<adv>\s+ADV)?\)\s*$", re.IGNORECASE)
+
+
+def _strip_group_suffix(name: str) -> str:
+    """Drop a trailing ``(G#)`` group marker from *name*, preserving any ADV flag."""
+    return _GROUP_SUFFIX_RE.sub(lambda m: " (ADV)" if m.group("adv") else "", name).strip()
+
+
 # A known Spanish card name used only to probe whether translated-name aliases
 # are present in the loaded krcg data ("Dreams of the Sphinx").
 _I18N_PROBE_NAME = "Sueños de la Esfinge"
@@ -127,6 +141,30 @@ def canonicalize_card_name(name: str) -> str:
         return card.name
 
     return name
+
+
+def canonical_crypt_name(name: str) -> str:
+    """Return the canonical *bare* crypt name for *name* (no group suffix).
+
+    Crypt cards are stored with their group in a separate ``grouping`` field, so the
+    name must not carry krcg's ``(G#)`` / ``(G# ADV)`` suffix (``Card.name`` includes
+    it). A lone ``(ADV)`` suffix is kept — downstream consumers use it to flag the
+    advanced version.
+
+    When krcg resolves *name* (including localized or suffixed spellings), the card's
+    ``printed_name`` is returned, plus ``" (ADV)"`` for advanced cards. Otherwise the
+    input is returned with any trailing ``(G#)`` group marker stripped, leaving a
+    bare name for genuine typos / unknown cards.
+    """
+    if is_krcg_loaded():
+        card = krcg_card_search(name)
+        if not card:
+            _ensure_i18n_loaded()
+            card = krcg_card_search(name)
+        if card and card.crypt:
+            return card.printed_name + (" (ADV)" if card.adv else "")
+
+    return _strip_group_suffix(name)
 
 
 def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:

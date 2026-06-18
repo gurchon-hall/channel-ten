@@ -839,16 +839,26 @@ class TestPickBestCryptVersion:
 class TestCanonicalizeCardNames:
     def test_rewrites_crypt_and_library_names(self):
         deck = _deck()
-        renames = {"Nathan Turner": "Turner, Nathan", "Blood Doll": "Blood Doll, The"}
+        # Crypt names route through canonical_crypt_name (bare name, group dropped);
+        # library names route through canonicalize_card_name (full canonicalization).
+        crypt_renames = {"Nathan Turner": "Turner, Nathan"}
+        library_renames = {"Blood Doll": "Blood Doll, The"}
 
-        def _rename_card(name: str) -> str:
-            return renames.get(name, name)
+        def _rename_crypt(name: str) -> str:
+            return crypt_renames.get(name, name)
+
+        def _rename_library(name: str) -> str:
+            return library_renames.get(name, name)
 
         with (
             patch("channel_ten.validator.is_krcg_loaded", return_value=True),
             patch(
+                "channel_ten.validator.canonical_crypt_name",
+                side_effect=_rename_crypt,
+            ),
+            patch(
                 "channel_ten.validator.canonicalize_card_name",
-                side_effect=_rename_card,
+                side_effect=_rename_library,
             ),
         ):
             fixes = canonicalize_card_names(deck)
@@ -864,6 +874,33 @@ class TestCanonicalizeCardNames:
             and deck["library_sections"][0]["cards"][0]["name"] == "Blood Doll, The"
         )
         assert len(fixes) == 2
+
+    def test_crypt_uses_crypt_canonicalizer_not_library(self):
+        deck = _deck()
+
+        def _crypt_alias(name: str) -> str:
+            return "Mina Grotius"
+
+        def _lib_alias(name: str) -> str:
+            return name
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch(
+                "channel_ten.validator.canonical_crypt_name",
+                side_effect=_crypt_alias,
+            ) as crypt_fn,
+            patch(
+                "channel_ten.validator.canonicalize_card_name",
+                side_effect=_lib_alias,
+            ) as lib_fn,
+        ):
+            canonicalize_card_names(deck)
+        # The crypt card must go through the crypt path, never the library path.
+        assert crypt_fn.called
+        crypt_args = {c.args[0] for c in crypt_fn.call_args_list}
+        assert "Nathan Turner" in crypt_args
+        assert "Nathan Turner" not in {c.args[0] for c in lib_fn.call_args_list}
 
     def test_no_op_when_krcg_unavailable(self):
         deck = _deck()

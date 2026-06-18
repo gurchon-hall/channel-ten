@@ -34,6 +34,7 @@ from typing import Any, cast
 
 from channel_ten._krcg_helper import (
     TYPE_ORDER,
+    canonical_crypt_name,
     canonicalize_card_name,
     get_all_vamp_variants,
     get_library_card_type,
@@ -229,12 +230,17 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
     return fixes
 
 
-def _iter_deck_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
-    """Return every crypt and library card dict in *deck* (mutable references)."""
-    cards: list[dict[str, Any]] = []
+def _iter_crypt_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
+    """Return every crypt card dict in *deck* (mutable references)."""
     crypt = deck.get("crypt")
     if isinstance(crypt, list):
-        cards.extend(cast(list[dict[str, Any]], crypt))
+        return cast(list[dict[str, Any]], crypt)
+    return []
+
+
+def _iter_library_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
+    """Return every library card dict in *deck* (mutable references)."""
+    cards: list[dict[str, Any]] = []
     for section in deck.get("library_sections") or []:
         section_cards = section.get("cards")
         if isinstance(section_cards, list):
@@ -245,16 +251,26 @@ def _iter_deck_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
 def canonicalize_card_names(deck: Deck_Dict) -> list[str]:
     """Rewrite crypt and library card names to krcg's canonical spelling.
 
-    Resolves leading-"The" word order, typographic apostrophes, and localized
-    (i18n) names to their canonical English form. Names krcg cannot resolve are
-    left unchanged. Mutates *deck* in place; returns human-readable descriptions
-    of the renames (empty when krcg is unavailable or nothing changed).
+    Library cards resolve leading-"The" word order, typographic apostrophes, and
+    localized (i18n) names to their canonical English form. Crypt cards resolve to
+    the *bare* printed name (no ``(G#)`` suffix, ``(ADV)`` preserved) since the group
+    is stored separately. Names krcg cannot resolve are left unchanged. Mutates
+    *deck* in place; returns human-readable descriptions of the renames (empty when
+    krcg is unavailable or nothing changed).
     """
     if not is_krcg_loaded():
         return []
 
     fixes: list[str] = []
-    for card in _iter_deck_cards(deck):
+    for card in _iter_crypt_cards(deck):
+        old_name = str(card.get("name") or "")
+        if not old_name:
+            continue
+        new_name = canonical_crypt_name(old_name)
+        if new_name != old_name:
+            card["name"] = new_name
+            fixes.append(f"  {old_name!r} → {new_name!r}")
+    for card in _iter_library_cards(deck):
         old_name = str(card.get("name") or "")
         if not old_name:
             continue

@@ -30,7 +30,12 @@ from channel_ten.models import Deck_Dict, Tournament, Tournament_Dict
 from channel_ten.scraper._forum import extract_twd_from_thread
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
 from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
-from channel_ten.validator import enrich_crypt_cards, error_types, fix_card_sections
+from channel_ten.validator import (
+    canonicalize_card_names,
+    enrich_crypt_cards,
+    error_types,
+    fix_card_sections,
+)
 
 # Error dir is rechecked every time to see if errors have been fixed
 # and can be removed; so we skip only tournaments flagged as "changes_required"
@@ -191,11 +196,20 @@ def run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     console.print(f"  calendar check error for {path.name}: {exc}")
 
-            # Step 3: enrich crypt cards and fix library sections via krcg
+            # Step 3: canonicalize names, enrich crypt cards and fix library sections
+            # via krcg. Canonicalization runs first so enrichment/section lookups see
+            # the official spelling (localized names, "The …" order, bare crypt names).
             deck: Deck_Dict = data.get("deck") or {}
             if deck:
+                name_fixes = canonicalize_card_names(deck)
                 crypt_fixes = enrich_crypt_cards(deck)
                 section_fixes = fix_card_sections(deck)
+                if name_fixes:
+                    console.print(
+                        f"[cyan]⚙[/cyan] {path.name}  names canonicalized:\n"
+                        + "\n".join(name_fixes)
+                    )
+                    dirty = True
                 if crypt_fixes:
                     console.print(
                         f"[cyan]⚙[/cyan] {path.name}  crypt enriched:\n" + "\n".join(crypt_fixes)

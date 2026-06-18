@@ -49,12 +49,26 @@ class TestStripInlineComment:
         assert text == "Erebus Mask"
         assert comment == "tons of value"
 
-    def test_trailing_period_before_comment(self):
+    def test_trailing_period_before_comment_is_kept(self):
+        # The trailing period is preserved at parse time (some names end in a
+        # period); canonicalization removes it for cards that don't end in one.
         text, comment = helpers.strip_inline_comment(
             "Dreams of the Sphinx.           --I make no apologies"
         )
-        assert text == "Dreams of the Sphinx"
+        assert text == "Dreams of the Sphinx."
         assert comment == "I make no apologies"
+
+    def test_trailing_period_in_name_preserved(self):
+        # Several card names genuinely end in a period and must not be truncated.
+        for name in ("J. S. Simmons, Esq.", "CrimethInc."):
+            text, comment = helpers.strip_inline_comment(name)
+            assert text == name
+            assert comment is None
+
+    def test_trailing_footnote_star_stripped(self):
+        text, comment = helpers.strip_inline_comment("Carlton Van Wyk*")
+        assert text == "Carlton Van Wyk"
+        assert comment is None
 
     def test_hyphenated_name_untouched(self):
         text, comment = helpers.strip_inline_comment("Anti-toxin")
@@ -77,6 +91,21 @@ class TestNormalizeUnicode:
         assert helpers.normalize_unicode("Nathan   Turner - Anti-toxin") == (
             "Nathan   Turner - Anti-toxin"
         )
+
+    def test_repairs_utf8_as_cp1252_mojibake(self):
+        assert helpers.normalize_unicode("Aline GÃ¤deke") == "Aline Gädeke"
+        assert helpers.normalize_unicode("Saku PihlajamÃ¤ki") == "Saku Pihlajamäki"
+        assert helpers.normalize_unicode("KuyÃ©n") == "Kuyén"
+
+    def test_leaves_correct_accents_untouched(self):
+        # Already-valid UTF-8 accents must never be "repaired".
+        for name in ("Ángel Guerrero", "Clara Hjortshøj", "Saankaláxt"):
+            assert helpers.normalize_unicode(name) == name
+
+    def test_drops_soft_hyphen(self):
+        # U+00AD (soft hyphen) is invisible and must be removed (the "Dí\xada" case).
+        assert helpers.normalize_unicode("Dí\xada de los Muertos") == "Día de los Muertos"
+        assert helpers.normalize_unicode("Blood\xadDoll") == "BloodDoll"
 
 
 class TestStripHashComment:
@@ -163,6 +192,24 @@ class TestParseCryptLine:
         assert card is not None
         assert card.title == "prince"
         assert card.clan == "Brujah"
+
+    def test_strips_group_suffix_from_name(self):
+        # Some posts bake the group into the name; the group is parsed from "Clan:N".
+        card = parsers.parse_crypt_line("1x Mina Grotius (G3)   5 for pre   Tremere:3")
+        assert card is not None
+        assert card.name == "Mina Grotius"
+        assert card.grouping == 3
+
+    def test_group_suffix_keeps_adv_flag(self):
+        card = parsers.parse_crypt_line("2x Tariq (G6 ADV)   8 cel obf pre   Banu Haqim:6")
+        assert card is not None
+        assert card.name == "Tariq (ADV)"
+        assert card.grouping == 6
+
+    def test_lone_adv_suffix_preserved(self):
+        card = parsers.parse_crypt_line("2x Tariq (ADV)   8 cel obf pre   Banu Haqim:6")
+        assert card is not None
+        assert card.name == "Tariq (ADV)"
 
 
 class TestParseLibraryLine:

@@ -61,6 +61,16 @@ class ParserRegex:
     ZERO_WIDTH_RE = re.compile("[\\u200b\\u200c\\u200d\\ufeff]")
     # Typographic apostrophes/quotes to straighten (matches krcg's spelling).
     APOSTROPHE_RE = re.compile("[\\u2018\\u2019\\u02bc\\u2032]")
+    # Soft hyphen (U+00AD): an invisible, discretionary hyphen that some forum
+    # exports leave inside names (e.g. "Dí\xada de los Muertos"). Drop it entirely.
+    SOFT_HYPHEN_RE = re.compile("\\u00ad")
+    # Classic UTF-8-as-cp1252 mojibake markers (e.g. "GÃ¤deke", "KuyÃ©n").
+    MOJIBAKE_MARKER_RE = re.compile("[ÃÂ][\\u0080-\\u00bf]")
+    # Trailing crypt group marker captured into the name, e.g. " (G3)" / " (G6 ADV)".
+    # The group is parsed separately from "Clan:N", so the group part is redundant and
+    # breaks downstream exact-match resolution. An ``ADV`` flag inside the marker is
+    # kept (re-emitted as " (ADV)"); a lone "(ADV)" never matches and is left intact.
+    CRYPT_GROUP_SUFFIX_RE = re.compile(r"\s*\(G\d+(?P<adv>\s+ADV)?\)\s*$", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -73,9 +83,10 @@ class LineHelpers:
     def normalize_unicode(raw: str) -> str:
         """Normalise unicode quirks that prevent card-name resolution.
 
+        - Repair UTF-8-as-cp1252 mojibake (e.g. ``GÃ¤deke`` → ``Gädeke``).
         - NFC-compose decomposed accents (e.g. combining acute) to match krcg.
         - Straighten typographic apostrophes/primes to ``'`` (e.g. ``My Enemy's``).
-        - Drop zero-width characters.
+        - Drop zero-width characters and the invisible soft hyphen (U+00AD).
         - Fold non-breaking and exotic unicode spaces to a regular space so card
           names like ``Walk\\xa0of\\xa0Flame`` become ``Walk of Flame``.
 
@@ -83,16 +94,44 @@ class LineHelpers:
         regex and the whitespace-delimited inline comments depend on them. Dashes
         are likewise left alone (they are inline-comment delimiters).
         """
+        raw = LineHelpers._repair_mojibake(raw)
         raw = unicodedata.normalize("NFC", raw)
         raw = ParserRegex.APOSTROPHE_RE.sub("'", raw)
         raw = ParserRegex.ZERO_WIDTH_RE.sub("", raw)
+        raw = ParserRegex.SOFT_HYPHEN_RE.sub("", raw)
         raw = ParserRegex.UNICODE_WS_RE.sub(" ", raw)
         return raw
 
     @staticmethod
+    def _repair_mojibake(raw: str) -> str:
+        """Best-effort repair of UTF-8 bytes that were decoded as cp1252/latin-1.
+
+        Double-encoding turns ``ä`` (UTF-8 ``0xC3 0xA4``) into ``Ã¤`` and ``é`` into
+        ``Ã©``. The repair re-encodes to cp1252 and decodes as UTF-8, but only keeps
+        the result when it round-trips cleanly *and* removes mojibake markers — so
+        legitimately accented text (already correct UTF-8) is never damaged.
+        """
+        if not ParserRegex.MOJIBAKE_MARKER_RE.search(raw):
+            return raw
+        try:
+            repaired = raw.encode("cp1252").decode("utf-8")
+        except UnicodeEncodeError, UnicodeDecodeError:
+            return raw
+        if len(ParserRegex.MOJIBAKE_MARKER_RE.findall(repaired)) < len(
+            ParserRegex.MOJIBAKE_MARKER_RE.findall(raw)
+        ):
+            return repaired
+        return raw
+
+    @staticmethod
     def _strip_name_markers(name: str) -> str:
-        """Strip trailing footnote ``*`` and stray ``.`` left after a comment."""
-        return name.rstrip().rstrip("*.").rstrip()
+        """Strip a trailing footnote ``*`` left after a comment.
+
+        A trailing ``.`` is intentionally preserved: several card names genuinely end
+        in a period (``J. S. Simmons, Esq.``, ``CrimethInc.``). Canonicalization
+        restores the official spelling for anything else downstream.
+        """
+        return name.rstrip().rstrip("*").rstrip()
 
     @staticmethod
     def strip_inline_comment(line: str) -> tuple[str, str | None]:
@@ -101,8 +140,8 @@ class LineHelpers:
         Recognises several inline-comment delimiters used on the forum:
         ``--`` (with or without surrounding spaces), ``//`` / ``*//`` (footnote +
         comment), and a space-flanked en/em dash or single hyphen. The earliest
-        delimiter wins. Trailing footnote ``*`` and ``.`` are stripped from the
-        name even when no comment follows.
+        delimiter wins. A trailing footnote ``*`` is stripped from the name even when
+        no comment follows (a trailing ``.`` is kept — some names end in a period).
         """
         m = ParserRegex.COMMENT_DELIM_RE.search(line)
         if m:
@@ -177,9 +216,14 @@ class CardParser:
         else:
             title = None
             clan = raw_clan
+        # The group is parsed separately (Clan:N), so drop a redundant "(G3)" suffix
+        # some posts bake into the name, while keeping any ADV flag as " (ADV)".
+        name = ParserRegex.CRYPT_GROUP_SUFFIX_RE.sub(
+            lambda mm: " (ADV)" if mm.group("adv") else "", m.group("name").strip()
+        ).strip()
         return CryptCard(
             count=int(m.group("count")),
-            name=m.group("name").strip(),
+            name=name,
             capacity=int(m.group("capacity")),
             disciplines=m.group("disciplines").strip(),
             clan=clan,

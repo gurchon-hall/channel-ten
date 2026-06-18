@@ -433,6 +433,51 @@ class TestCanonicalizeCardName:
 
 
 # ---------------------------------------------------------------------------
+# canonical_crypt_name
+# ---------------------------------------------------------------------------
+
+
+def _named_crypt_card(printed_name: str, *, adv: bool = False) -> MagicMock:
+    card = MagicMock()
+    card.crypt = True
+    card.printed_name = printed_name
+    card.adv = adv
+    return card
+
+
+class TestCanonicalCryptName:
+    def setup_method(self):
+        _reset_state()
+
+    def teardown_method(self):
+        _reset_state()
+
+    def test_strips_group_suffix_when_krcg_unavailable(self):
+        kh._krcg_loaded = False
+        assert kh.canonical_crypt_name("Mina Grotius (G3)") == "Mina Grotius"
+
+    def test_keeps_adv_when_krcg_unavailable(self):
+        kh._krcg_loaded = False
+        assert kh.canonical_crypt_name("Tariq (G6 ADV)") == "Tariq (ADV)"
+
+    def test_lone_adv_preserved_when_krcg_unavailable(self):
+        kh._krcg_loaded = False
+        assert kh.canonical_crypt_name("Tariq (ADV)") == "Tariq (ADV)"
+
+    def test_resolved_returns_bare_printed_name(self):
+        mock_krcg, _ = _make_krcg_mock(get_return_value=_named_crypt_card("Mina Grotius"))
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonical_crypt_name("Mina Grotius (G3)") == "Mina Grotius"
+
+    def test_resolved_advanced_appends_adv(self):
+        mock_krcg, _ = _make_krcg_mock(get_return_value=_named_crypt_card("Tariq", adv=True))
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonical_crypt_name("Tariq (G6 ADV)") == "Tariq (ADV)"
+
+
+# ---------------------------------------------------------------------------
 # get_library_card_type
 # ---------------------------------------------------------------------------
 

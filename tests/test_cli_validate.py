@@ -115,6 +115,7 @@ def _patch_validate(**overrides: Any):
         "fetch_event_winner": None,
         "fetch_player": None,
         "fetch_event_date": None,
+        "canonicalize_card_names": [],
         "enrich_crypt_cards": [],
         "fix_card_sections": [],
         "error_types": [],
@@ -326,6 +327,20 @@ class TestValidateRunScraperInteraction:
         assert (
             mocks["fetch_player"].call_args[0][1] == "Jane Doe"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
         )
+
+    def test_canonicalize_card_names_called(self, tmp_path: Path):
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["canonicalize_card_names"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_canonicalize_marks_file_dirty(self, tmp_path: Path):
+        # When canonicalization reports a rename, the file is rewritten in place.
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate(canonicalize_card_names=["  'X' → 'Y'"]):
+            validate_mod.run(_validate_namespace(tmp_path))
+        # File is updated in place (still present at canonical path, not moved away).
+        assert (tmp_path / "2023" / "03" / "9999.yaml").exists()
 
     def test_enrich_crypt_cards_called(self, tmp_path: Path):
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
