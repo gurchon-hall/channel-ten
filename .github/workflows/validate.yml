@@ -1,4 +1,4 @@
-name: Channel 10 — Validate scraped TWD
+name: TWD Validate scrapes
 
 on:
   # Run every Sunday at 20:00 UTC

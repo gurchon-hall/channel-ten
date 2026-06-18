@@ -1,4 +1,4 @@
-name: Scrape TWD
+name: TWD Scrape VEKN forum
 
 on:
   # Run on a schedule — every day at 06:00 UTC
