@@ -21,8 +21,15 @@ import channel_ten._krcg_helper as kh
 def _reset_state() -> None:
     """Restore module-level cache to its initial (unchecked) state."""
     kh._krcg_loaded = None
+    kh._i18n_ensured = False
     kh._seen_cards.clear()
     kh._cards_loaded.clear()
+
+
+def _named_card(name: str) -> MagicMock:
+    card = MagicMock()
+    card.name = name
+    return card
 
 
 def _make_krcg_mock(get_return_value: Any = None):
@@ -64,7 +71,7 @@ def _make_crypt_card(
 
 
 # ---------------------------------------------------------------------------
-# _is_krcg_loaded
+# is_krcg_loaded
 # ---------------------------------------------------------------------------
 
 
@@ -77,27 +84,27 @@ class TestIsKrcgLoaded:
 
     def test_returns_cached_true(self):
         kh._krcg_loaded = True
-        assert kh._is_krcg_loaded() is True
+        assert kh.is_krcg_loaded() is True
 
     def test_returns_cached_false(self):
         kh._krcg_loaded = False
-        assert kh._is_krcg_loaded() is False
+        assert kh.is_krcg_loaded() is False
 
     def test_loads_and_caches_true(self):
         mock_krcg, _ = _make_krcg_mock()
         with patch.dict(sys.modules, {"krcg": mock_krcg}):
-            result = kh._is_krcg_loaded()
+            result = kh.is_krcg_loaded()
         assert result is True
         assert kh._krcg_loaded is True
 
     def test_import_error_caches_false(self):
-        """When krcg.vtes cannot be imported, _is_krcg_loaded returns False."""
+        """When krcg.vtes cannot be imported, is_krcg_loaded returns False."""
         broken = types.ModuleType("krcg")
         # broken has no 'vtes' attribute → 'from krcg import vtes' raises ImportError
         saved_vtes = sys.modules.pop("krcg.vtes", None)
         try:
             with patch.dict(sys.modules, {"krcg": broken}):
-                result = kh._is_krcg_loaded()
+                result = kh.is_krcg_loaded()
         finally:
             if saved_vtes is not None:
                 sys.modules["krcg.vtes"] = saved_vtes
@@ -106,7 +113,7 @@ class TestIsKrcgLoaded:
 
 
 # ---------------------------------------------------------------------------
-# _krcg_card_search
+# krcg_card_search
 # ---------------------------------------------------------------------------
 
 
@@ -119,28 +126,28 @@ class TestKrcgCardSearch:
 
     def test_returns_none_when_krcg_not_loaded(self):
         kh._krcg_loaded = False
-        assert kh._krcg_card_search("Blood Doll") is None
+        assert kh.krcg_card_search("Blood Doll") is None
 
     def test_returns_cached_result(self):
         mock_card = MagicMock()
         kh._krcg_loaded = True
         kh._seen_cards.add("Blood Doll")
         kh._cards_loaded["Blood Doll"] = mock_card
-        assert kh._krcg_card_search("Blood Doll") is mock_card
+        assert kh.krcg_card_search("Blood Doll") is mock_card
 
     def test_returns_none_from_cache_when_card_missing(self):
         """Cache hit that stored None still returns None."""
         kh._krcg_loaded = True
         kh._seen_cards.add("Unknown")
         kh._cards_loaded["Unknown"] = None
-        assert kh._krcg_card_search("Unknown") is None
+        assert kh.krcg_card_search("Unknown") is None
 
     def test_fetches_card_from_database(self):
         mock_card = MagicMock()
         mock_krcg, _ = _make_krcg_mock(get_return_value=mock_card)
         kh._krcg_loaded = True
         with patch.dict(sys.modules, {"krcg": mock_krcg}):
-            result = kh._krcg_card_search("Blood Doll")
+            result = kh.krcg_card_search("Blood Doll")
         assert result is mock_card
         assert "Blood Doll" in kh._seen_cards
         assert kh._cards_loaded["Blood Doll"] is mock_card
@@ -149,7 +156,7 @@ class TestKrcgCardSearch:
         mock_krcg, _ = _make_krcg_mock(get_return_value=None)
         kh._krcg_loaded = True
         with patch.dict(sys.modules, {"krcg": mock_krcg}):
-            result = kh._krcg_card_search("Nonexistent Card")
+            result = kh.krcg_card_search("Nonexistent Card")
         assert result is None
         assert "Nonexistent Card" in kh._seen_cards
 
@@ -158,7 +165,7 @@ class TestKrcgCardSearch:
         mock_krcg, _ = _make_krcg_mock(get_return_value=mock_card)
         kh._krcg_loaded = True
         with patch.dict(sys.modules, {"krcg": mock_krcg}):
-            result = kh._krcg_card_search(1001)
+            result = kh.krcg_card_search(1001)
         assert result is mock_card
         assert 1001 in kh._seen_cards
 
@@ -277,7 +284,7 @@ class TestGetAllVampVariants:
         assert "clan" in result[0] and result[0]["clan"] == ""
 
     def test_variant_key_error_is_skipped(self):
-        """KeyError from _krcg_card_search for a variant id is caught and skipped."""
+        """KeyError from krcg_card_search for a variant id is caught and skipped."""
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
         def _mock_search(key: str | int):
@@ -286,12 +293,12 @@ class TestGetAllVampVariants:
             raise KeyError(key)
 
         kh._krcg_loaded = True
-        with patch.object(kh, "_krcg_card_search", side_effect=_mock_search):
+        with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1  # 2001 skipped via KeyError
 
     def test_variant_returns_none_is_skipped(self):
-        """None from _krcg_card_search for a variant id is skipped."""
+        """None from krcg_card_search for a variant id is skipped."""
         main_card = _make_crypt_card(card_id=1001, variants={1: 2001})
 
         def _mock_search(key: str | int):
@@ -300,7 +307,7 @@ class TestGetAllVampVariants:
             return None
 
         kh._krcg_loaded = True
-        with patch.object(kh, "_krcg_card_search", side_effect=_mock_search):
+        with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1  # 2001 skipped (None)
 
@@ -315,7 +322,7 @@ class TestGetAllVampVariants:
             return lib_card
 
         kh._krcg_loaded = True
-        with patch.object(kh, "_krcg_card_search", side_effect=_mock_search):
+        with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1  # lib_card skipped (not crypt)
 
@@ -330,7 +337,7 @@ class TestGetAllVampVariants:
             return bad_card
 
         kh._krcg_loaded = True
-        with patch.object(kh, "_krcg_card_search", side_effect=_mock_search):
+        with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1  # bad_card skipped (group not int-convertible)
 
@@ -344,9 +351,85 @@ class TestGetAllVampVariants:
             raise RuntimeError("unexpected!")  # propagates to outer except
 
         kh._krcg_loaded = True
-        with patch.object(kh, "_krcg_card_search", side_effect=_mock_search):
+        with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# canonicalize_card_name
+# ---------------------------------------------------------------------------
+
+
+class TestCanonicalizeCardName:
+    def setup_method(self):
+        _reset_state()
+
+    def teardown_method(self):
+        _reset_state()
+
+    def test_returns_unchanged_when_krcg_not_loaded(self):
+        kh._krcg_loaded = False
+        assert kh.canonicalize_card_name("The Coven") == "The Coven"
+
+    def test_direct_hit_returns_card_name(self):
+        mock_krcg, _ = _make_krcg_mock(get_return_value=_named_card("Blood Doll"))
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonicalize_card_name("Blood Doll") == "Blood Doll"
+
+    def test_leading_the_fallback(self):
+        mock_krcg, mock_vtes = _make_krcg_mock()
+
+        def _get(name: str, default: Any = None):
+            return _named_card("Coven, The") if name == "Coven, The" else default
+
+        mock_vtes.VTES.get.side_effect = _get
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonicalize_card_name("The Coven") == "Coven, The"
+
+    def test_trailing_the_fallback(self):
+        mock_krcg, mock_vtes = _make_krcg_mock()
+
+        def _get(name: str, default: Any = None):
+            return _named_card("Unmasking, The") if name == "Unmasking, The" else default
+
+        mock_vtes.VTES.get.side_effect = _get
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonicalize_card_name("Unmasking") == "Unmasking, The"
+
+    def test_resolves_localized_name(self):
+        """A Spanish name resolves (via krcg alias) to the canonical English name."""
+        mock_krcg, mock_vtes = _make_krcg_mock()
+
+        def _get(name: str, default: Any = None):
+            if name == "Sueños de la Esfinge":
+                return _named_card("Dreams of the Sphinx")
+            return default
+
+        mock_vtes.VTES.get.side_effect = _get
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonicalize_card_name("Sueños de la Esfinge") == "Dreams of the Sphinx"
+
+    def test_i18n_fallback_loads_translations_when_probe_missing(self):
+        """When the probe name does not resolve, load_from_vekn() is attempted once."""
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=None)
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            result = kh.canonicalize_card_name("Totally Unknown Card")
+        assert result == "Totally Unknown Card"
+        assert mock_vtes.VTES.load_from_vekn.called
+
+    def test_unresolved_name_returned_unchanged(self):
+        mock_krcg, _ = _make_krcg_mock(get_return_value=None)
+        kh._krcg_loaded = True
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            assert kh.canonicalize_card_name("Carna, The Princess Bitch") == (
+                "Carna, The Princess Bitch"
+            )
 
 
 # ---------------------------------------------------------------------------

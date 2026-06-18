@@ -34,8 +34,11 @@ from typing import Any, cast
 
 from channel_ten._krcg_helper import (
     TYPE_ORDER,
+    canonicalize_card_name,
     get_all_vamp_variants,
     get_library_card_type,
+    is_krcg_loaded,
+    krcg_card_search,
 )
 from channel_ten.models import (
     Crypt_Card_Dict,
@@ -224,6 +227,68 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
         deck["library_count"] = sum([s.get("count", 0) for s in new_sections])
 
     return fixes
+
+
+def _iter_deck_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
+    """Return every crypt and library card dict in *deck* (mutable references)."""
+    cards: list[dict[str, Any]] = []
+    crypt = deck.get("crypt")
+    if isinstance(crypt, list):
+        cards.extend(cast(list[dict[str, Any]], crypt))
+    for section in deck.get("library_sections") or []:
+        section_cards = section.get("cards")
+        if isinstance(section_cards, list):
+            cards.extend(cast(list[dict[str, Any]], section_cards))
+    return cards
+
+
+def canonicalize_card_names(deck: Deck_Dict) -> list[str]:
+    """Rewrite crypt and library card names to krcg's canonical spelling.
+
+    Resolves leading-"The" word order, typographic apostrophes, and localized
+    (i18n) names to their canonical English form. Names krcg cannot resolve are
+    left unchanged. Mutates *deck* in place; returns human-readable descriptions
+    of the renames (empty when krcg is unavailable or nothing changed).
+    """
+    if not is_krcg_loaded():
+        return []
+
+    fixes: list[str] = []
+    for card in _iter_deck_cards(deck):
+        old_name = str(card.get("name") or "")
+        if not old_name:
+            continue
+        new_name = canonicalize_card_name(old_name)
+        if new_name != old_name:
+            card["name"] = new_name
+            fixes.append(f"  {old_name!r} → {new_name!r}")
+    return fixes
+
+
+def unresolved_card_errors(deck: Deck_Dict) -> list[str]:
+    """Flag decks whose card names do not resolve in krcg, for manual review.
+
+    Returns ``["illegal_crypt"]`` and/or ``["illegal_library"]`` when any crypt or
+    library card name (after canonicalization) is unknown to krcg. Returns ``[]``
+    when krcg is unavailable, so offline runs never produce false positives.
+    """
+    if not is_krcg_loaded():
+        return []
+
+    errors: list[str] = []
+    crypt = deck.get("crypt")
+    if isinstance(crypt, list) and any(
+        not krcg_card_search(str(c.get("name") or "")) for c in crypt
+    ):
+        errors.append("illegal_crypt")
+
+    library_cards = [
+        c for section in (deck.get("library_sections") or []) for c in (section.get("cards") or [])
+    ]
+    if any(not krcg_card_search(str(c.get("name") or "")) for c in library_cards):
+        errors.append("illegal_library")
+
+    return errors
 
 
 def parse_date_field(raw: date | str | None) -> date | None:

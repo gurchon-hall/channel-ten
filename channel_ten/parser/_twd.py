@@ -10,6 +10,7 @@ from channel_ten.parser._header import (
 
 
 def parse_twd_text(raw: str, forum_post_url: str | None = None) -> Tournament:
+    raw = helpers.helpers.normalize_unicode(raw)
     lines = [helpers.helpers.strip_hash_comment(line) for line in raw.splitlines()]
     while lines and not lines[0].strip():
         lines.pop(0)

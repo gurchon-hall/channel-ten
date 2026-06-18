@@ -60,7 +60,7 @@ class TestKuneaDivToText:
 class TestGet:
     def test_returns_beautifulsoup(self):
         mock_response = MagicMock()
-        mock_response.text = "<html><body>Hello</body></html>"
+        mock_response.content = b"<html><body>Hello</body></html>"
         mock_response.raise_for_status = MagicMock()
 
         mock_client = MagicMock()
@@ -71,6 +71,22 @@ class TestGet:
 
         assert soup is not None
         assert soup.find("body") is not None
+
+    def test_decodes_utf8_bytes_without_mojibake(self):
+        """Parsing response.content lets bs4 detect UTF-8, avoiding mojibake."""
+        mock_response = MagicMock()
+        mock_response.content = "<html><body>Aline Gädeke</body></html>".encode()
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("channel_ten.scraper._http.time.sleep"):
+            soup = get_soup(mock_client, "https://example.com", delay=0)
+
+        text = soup.get_text()
+        assert "Gädeke" in text
+        assert "GÃ¤deke" not in text
 
     def test_raises_on_http_error(self):
         mock_response = MagicMock()

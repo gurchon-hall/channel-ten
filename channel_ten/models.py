@@ -79,13 +79,13 @@ class CryptCard(BaseModel):
     title: str | None = None  # e.g. "Primogen" (not always present)
     clan: str
     grouping: int | str  # int for normal groups (1–8); "ANY" for group-independent cards
-    comment: str | None = None  # after ' -- '
+    comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
 
 
 class LibraryCard(BaseModel):
     count: int
     name: str
-    comment: str | None = None  # after ' -- '
+    comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
 
 
 class LibrarySection(BaseModel):

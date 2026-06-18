@@ -3,8 +3,6 @@ Tests for topic icon detection (detect_topic_icon) and the scrape CLI
 routing logic (idea=skip, merged→changes_required/, others→YYYY/MM/).
 """
 
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 from typing import Any, cast

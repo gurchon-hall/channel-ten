@@ -13,10 +13,12 @@ from channel_ten.models import (
 )
 from channel_ten.validator import (
     _pick_best_crypt_version,  # pyright: ignore[reportPrivateUsage]
+    canonicalize_card_names,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
     parse_date_field,
+    unresolved_card_errors,
 )
 
 
@@ -382,12 +384,10 @@ class TestFixCardSections:
         return _ctx()
 
     def test_no_changes_when_sections_correct(self):
-        deck = _make_deck_with_sections(
-            [
-                _section("Master", [_card("Villein", 3)]),
-                _section("Action", [_card("Govern the Unaligned", 2)]),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section("Master", [_card("Villein", 3)]),
+            _section("Action", [_card("Govern the Unaligned", 2)]),
+        ])
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
         assert fixes == []
@@ -399,14 +399,12 @@ class TestFixCardSections:
 
     def test_moves_card_to_correct_section(self):
         # Govern the Unaligned is in Master — should move to Action
-        deck = _make_deck_with_sections(
-            [
-                _section(
-                    "Master",
-                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-                ),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section(
+                "Master",
+                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+            ),
+        ])
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
 
@@ -425,14 +423,12 @@ class TestFixCardSections:
         assert "count" in action and action["count"] == 1
 
     def test_library_count_updated(self):
-        deck = _make_deck_with_sections(
-            [
-                _section(
-                    "Master",
-                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-                ),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section(
+                "Master",
+                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+            ),
+        ])
         with self._patch_krcg():
             fix_card_sections(deck)
         assert "library_count" in deck and deck["library_count"] == 3  # unchanged total
@@ -464,12 +460,10 @@ class TestFixCardSections:
     def test_sections_rebuilt_in_type_order(self):
         """After fixing, sections must follow krcg TYPE_ORDER."""
         # Put Reaction before Master deliberately
-        deck = _make_deck_with_sections(
-            [
-                _section("Reaction", [_card("Deflection", 2)]),
-                _section("Master", [_card("Villein", 3)]),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section("Reaction", [_card("Deflection", 2)]),
+            _section("Master", [_card("Villein", 3)]),
+        ])
         # Both are already correct, so we force a move to trigger rebuild.
         # Put Mirror Walk (Action Modifier) in the Master section.
         assert "library_sections" in deck and "library_count" in deck
@@ -827,3 +821,104 @@ class TestPickBestCryptVersion:
         ]
         best = _pick_best_crypt_version(versions, {5})
         assert "grouping" in best and best["grouping"] == "ANY"
+
+
+# ---------------------------------------------------------------------------
+# canonicalize_card_names
+# ---------------------------------------------------------------------------
+
+
+class TestCanonicalizeCardNames:
+    def test_rewrites_crypt_and_library_names(self):
+        deck = _deck()
+        renames = {"Nathan Turner": "Turner, Nathan", "Blood Doll": "Blood Doll, The"}
+
+        def _rename_card(name: str) -> str:
+            return renames.get(name, name)
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch(
+                "channel_ten.validator.canonicalize_card_name",
+                side_effect=_rename_card,
+            ),
+        ):
+            fixes = canonicalize_card_names(deck)
+        assert (
+            "crypt" in deck
+            and "name" in deck["crypt"][0]
+            and deck["crypt"][0]["name"] == "Turner, Nathan"
+        )
+        assert (
+            "library_sections" in deck
+            and "cards" in deck["library_sections"][0]
+            and "name" in deck["library_sections"][0]["cards"][0]
+            and deck["library_sections"][0]["cards"][0]["name"] == "Blood Doll, The"
+        )
+        assert len(fixes) == 2
+
+    def test_no_op_when_krcg_unavailable(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            fixes = canonicalize_card_names(deck)
+        assert fixes == []
+        assert (
+            "crypt" in deck
+            and "name" in deck["crypt"][0]
+            and deck["crypt"][0]["name"] == "Nathan Turner"
+        )
+
+
+# ---------------------------------------------------------------------------
+# unresolved_card_errors
+# ---------------------------------------------------------------------------
+
+
+class TestUnresolvedCardErrors:
+    def test_flags_unresolved_crypt(self):
+        deck = _deck()
+        assert "crypt" in deck
+        deck["crypt"][0]["name"] = "Carna, The Princess Bitch"  # unknown to krcg
+
+        def _search_card(name: str) -> object | None:
+            return None if "Bitch" in name else object()
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch(
+                "channel_ten.validator.krcg_card_search",
+                side_effect=_search_card,
+            ),
+        ):
+            assert unresolved_card_errors(deck) == ["illegal_crypt"]
+
+    def test_flags_unresolved_library(self):
+        deck = _deck()
+        assert "library_sections" in deck
+        assert "cards" in deck["library_sections"][0]
+        deck["library_sections"][0]["cards"][0]["name"] = "Cloak of the Gathering"
+
+        def _search_card(name: str) -> object | None:
+            return None if name == "Cloak of the Gathering" else object()
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch(
+                "channel_ten.validator.krcg_card_search",
+                side_effect=_search_card,
+            ),
+        ):
+            assert unresolved_card_errors(deck) == ["illegal_library"]
+
+    def test_no_errors_when_all_resolve(self):
+        deck = _deck()
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch("channel_ten.validator.krcg_card_search", return_value=object()),
+        ):
+            assert unresolved_card_errors(deck) == []
+
+    def test_no_errors_when_krcg_unavailable(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            assert unresolved_card_errors(deck) == []

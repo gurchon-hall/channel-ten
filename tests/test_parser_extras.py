@@ -24,6 +24,60 @@ class TestStripInlineComment:
         assert text == "Blood Doll"
         assert comment is None
 
+    def test_double_dash_without_trailing_space(self):
+        text, comment = helpers.strip_inline_comment("Abombwe        --a lot, I know")
+        assert text == "Abombwe"
+        assert comment == "a lot, I know"
+
+    def test_en_dash(self):
+        text, comment = helpers.strip_inline_comment("Obedient Flesh – 3rd copy")
+        assert text == "Obedient Flesh"
+        assert comment == "3rd copy"
+
+    def test_spaced_hyphen(self):
+        text, comment = helpers.strip_inline_comment("Perfectionist - could be a DI?")
+        assert text == "Perfectionist"
+        assert comment == "could be a DI?"
+
+    def test_footnote_slashes_no_space(self):
+        text, comment = helpers.strip_inline_comment("Filchware's Pawn Shop *//recursion is broken")
+        assert text == "Filchware's Pawn Shop"
+        assert comment == "recursion is broken"
+
+    def test_footnote_slashes_with_space(self):
+        text, comment = helpers.strip_inline_comment("Erebus Mask *// tons of value")
+        assert text == "Erebus Mask"
+        assert comment == "tons of value"
+
+    def test_trailing_period_before_comment(self):
+        text, comment = helpers.strip_inline_comment(
+            "Dreams of the Sphinx.           --I make no apologies"
+        )
+        assert text == "Dreams of the Sphinx"
+        assert comment == "I make no apologies"
+
+    def test_hyphenated_name_untouched(self):
+        text, comment = helpers.strip_inline_comment("Anti-toxin")
+        assert text == "Anti-toxin"
+        assert comment is None
+
+
+class TestNormalizeUnicode:
+    def test_folds_non_breaking_spaces(self):
+        assert helpers.normalize_unicode("Walk\xa0of\xa0Flame") == "Walk of Flame"
+
+    def test_straightens_curly_apostrophe(self):
+        assert helpers.normalize_unicode("My Enemy’s Enemy") == "My Enemy's Enemy"
+
+    def test_drops_zero_width_chars(self):
+        assert helpers.normalize_unicode("Blood​Doll") == "BloodDoll"
+
+    def test_preserves_ascii_space_runs(self):
+        # Multi-space runs (column alignment) and in-name hyphens must survive.
+        assert helpers.normalize_unicode("Nathan   Turner - Anti-toxin") == (
+            "Nathan   Turner - Anti-toxin"
+        )
+
 
 class TestStripHashComment:
     def test_strips_hash(self):

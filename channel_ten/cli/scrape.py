@@ -32,9 +32,11 @@ from channel_ten.scraper import (
     scrape_forum,
 )
 from channel_ten.validator import (
+    canonicalize_card_names,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
+    unresolved_card_errors,
 )
 
 logger = logging.getLogger(__name__)
@@ -175,6 +177,7 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
 
     crypt_fixes = enrich_crypt_cards(deck_data)
     section_fixes = fix_card_sections(deck_data)
+    name_fixes = canonicalize_card_names(deck_data)
 
     if crypt_fixes:
         console.print(
@@ -185,8 +188,13 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
             f"[cyan]⚙[/cyan] {tournament.yaml_filename}  sections fixed:\n"
             + "\n".join(section_fixes)
         )
+    if name_fixes:
+        console.print(
+            f"[cyan]⚙[/cyan] {tournament.yaml_filename}  names canonicalized:\n"
+            + "\n".join(name_fixes)
+        )
 
-    if crypt_fixes or section_fixes:
+    if crypt_fixes or section_fixes or name_fixes:
         data["deck"] = deck_data
         return Tournament.model_validate(data)
 
@@ -213,6 +221,15 @@ def _validate_content(
             )
 
     errors = error_types(data, calendar_date=calendar_date)
+
+    # Flag decks with card names krcg cannot resolve (likely forum typos or
+    # unsupported localizations) so they route to errors/ for manual review.
+    deck_data = data.get("deck")
+    if deck_data:
+        for err in unresolved_card_errors(deck_data):
+            if err not in errors:
+                errors.append(err)
+
     if errors:
         logger.debug(
             "Validation errors for %s: %s",

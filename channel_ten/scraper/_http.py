@@ -52,7 +52,11 @@ def get_soup(client: httpx.Client, url: str, delay: float = DEFAULT_DELAY_SECOND
     response = client.get(url, follow_redirects=True)
     response.raise_for_status()
     time.sleep(delay)
-    return BeautifulSoup(response.text, "lxml")
+    # Parse the raw bytes (not response.text) so BeautifulSoup/UnicodeDammit can
+    # detect the document's real charset from the <meta charset>/BOM. Passing the
+    # pre-decoded response.text relies on httpx's charset guess, which mangles
+    # UTF-8 pages served without a charset header into mojibake (e.g. "GÃ¤deke").
+    return BeautifulSoup(response.content, "lxml")
 
 
 def kunena_div_to_text(div: Tag) -> str:
