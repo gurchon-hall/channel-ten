@@ -1,4 +1,4 @@
-name: Import TWD
+name: TWD resync archive
 
 on:
   # Run on a schedule — every Monday at 08:00 UTC
