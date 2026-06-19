@@ -23,8 +23,8 @@ repos:
         name: pytest
         entry: python -m pytest
         language: system
-        pass_filenames: true
-        always_run: false
+        pass_filenames: false
+        always_run: true
         types_or: [python, pyi]
 
       # CLI smoke tests — verify each subcommand loads and parses args cleanly
