@@ -1,0 +1,115 @@
+name: Import TWD
+
+on:
+  # Run on a schedule — every Monday at 08:00 UTC
+  # This is 2h after the start of WF publish
+  schedule:
+    - cron: "0 8 * * 1"
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Import at most N new decks (default: all)"
+        required: false
+        default: ""
+      overwrite:
+        description: "Overwrite existing YAML files?"
+        type: boolean
+        default: false
+
+concurrency:
+  group: import
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+
+  import:
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push to eternal-vigilance
+
+    steps:
+      - name: Checkout channel-ten
+        uses: actions/checkout@v4
+        with:
+          path: channel-ten
+
+      - name: Checkout eternal-vigilance
+        uses: actions/checkout@v4
+        with:
+          repository: gurchon-hall/eternal-vigilance
+          token: ${{ secrets.PAT_TOKEN }}
+          path: eternal-vigilance
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true   # required until 3.14 reaches final release
+          cache: "pip"
+
+      - name: Set UTF-8 encoding (required on Windows runners)
+        run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: pip install -e "./channel-ten[dev]"
+
+      - name: Build import command
+        id: build_cmd
+        run: |
+          CMD="channel-ten import --output-dir eternal-vigilance"
+
+          LIMIT="${{ github.event.inputs.limit }}"
+          if [ -n "$LIMIT" ]; then
+            CMD="$CMD --limit $LIMIT"
+          fi
+
+          if [ "${{ github.event.inputs.overwrite }}" = "true" ]; then
+            CMD="$CMD --overwrite"
+          fi
+          echo "cmd=$CMD" >> "$GITHUB_OUTPUT"
+
+      - name: Import from GiottoVerducci/TWD
+        continue-on-error: true
+        # GITHUB_TOKEN raises the rate limit on the deck-listing API call.
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: ${{ steps.build_cmd.outputs.cmd }}
+
+      - name: Check for new files
+        id: git_status
+        working-directory: eternal-vigilance
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --staged --stat
+          fi
+
+      - name: Commit and push new YAML files
+        if: steps.git_status.outputs.changed == 'true'
+        working-directory: eternal-vigilance
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: import TWD from GiottoVerducci $(date -u +%Y-%m-%d)"
+
+          # Retry up to 3 times in case of race conditions with other pushes
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              echo "Push successful on attempt $attempt"
+              exit 0
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Push failed on attempt $attempt, retrying..."
+              sleep 2
+            fi
+          done
+          echo "Push failed after 3 attempts"
+          exit 1

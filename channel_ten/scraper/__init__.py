@@ -28,6 +28,12 @@ from channel_ten.scraper._icons import (
     ICON_SOLVED,
     detect_topic_icon,
 )
+from channel_ten.scraper._twda import (
+    TWDA_DECKS_FOLDER,
+    TWDA_RAW_BASE,
+    fetch_twda_txt,
+    list_twda_event_ids,
+)
 from channel_ten.scraper._vekn import (
     fetch_event_date,
     fetch_event_name,
@@ -44,6 +50,8 @@ __all__ = [
     "ICON_IDEA",
     "ICON_MERGED",
     "ICON_SOLVED",
+    "TWDA_DECKS_FOLDER",
+    "TWDA_RAW_BASE",
     # HTTP helpers
     "get_soup",
     "kunena_div_to_text",
@@ -58,4 +66,7 @@ __all__ = [
     "fetch_event_name",
     "fetch_event_winner",
     "fetch_player",
+    # GiottoVerducci/TWD archive
+    "fetch_twda_txt",
+    "list_twda_event_ids",
 ]

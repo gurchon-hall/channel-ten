@@ -8,10 +8,14 @@ Scraping workflow:
   5. Look up the winner in the VEKN player registry for their VEKN number.
   6. Validate card information with the krcg library.
   7. Validate content and route files to the appropriate destination.
+
+Steps 3-7 are exposed as :func:`process_tournament` and :func:`route_tournament`
+so the ``import`` subcommand can reuse the exact same pipeline.
 """
 
 import argparse
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -32,11 +36,9 @@ from channel_ten.scraper import (
     scrape_forum,
 )
 from channel_ten.validator import (
-    canonicalize_card_names,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
-    unresolved_card_errors,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,7 +179,6 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
 
     crypt_fixes = enrich_crypt_cards(deck_data)
     section_fixes = fix_card_sections(deck_data)
-    name_fixes = canonicalize_card_names(deck_data)
 
     if crypt_fixes:
         console.print(
@@ -188,13 +189,8 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
             f"[cyan]⚙[/cyan] {tournament.yaml_filename}  sections fixed:\n"
             + "\n".join(section_fixes)
         )
-    if name_fixes:
-        console.print(
-            f"[cyan]⚙[/cyan] {tournament.yaml_filename}  names canonicalized:\n"
-            + "\n".join(name_fixes)
-        )
 
-    if crypt_fixes or section_fixes or name_fixes:
+    if crypt_fixes or section_fixes:
         data["deck"] = deck_data
         return Tournament.model_validate(data)
 
@@ -221,15 +217,6 @@ def _validate_content(
             )
 
     errors = error_types(data, calendar_date=calendar_date)
-
-    # Flag decks with card names krcg cannot resolve (likely forum typos or
-    # unsupported localizations) so they route to errors/ for manual review.
-    deck_data = data.get("deck")
-    if deck_data:
-        for err in unresolved_card_errors(deck_data):
-            if err not in errors:
-                errors.append(err)
-
     if errors:
         logger.debug(
             "Validation errors for %s: %s",
@@ -237,6 +224,123 @@ def _validate_content(
             errors,
         )
     return errors
+
+
+# ---------------------------------------------------------------------------
+# Shared pipeline orchestration and routing (reused by the import subcommand)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RouteCounters:
+    """Tallies for a processing run, shared across subcommands."""
+
+    written: int = 0
+    skipped: int = 0
+    failed: int = 0
+    overwrite_skipped: int = 0
+
+
+def process_tournament(
+    client: httpx.Client,
+    tournament: Tournament,
+    delay: float,
+) -> tuple[Tournament, list[str]]:
+    """Run pipeline steps 3-6 and return the enriched tournament and its errors.
+
+    The returned ``errors`` list includes ``"unconfirmed_winner"`` when the event
+    has a calendar URL but the calendar page has no results/standings data yet.
+    """
+    # Step 3: check event calendar for the tournament name
+    tournament = _check_calendar_name(client, tournament, delay)
+
+    # Step 4: check event calendar for the winner's name
+    tournament, calendar_winner_missing = _check_calendar_winner(client, tournament, delay)
+
+    # Step 5: look up winner in VEKN player registry
+    tournament = _lookup_player(client, tournament, delay)
+
+    # Step 6: validate card information with krcg
+    tournament = _enrich_with_krcg(tournament)
+
+    # Step 7a: validate content
+    errors = _validate_content(client, tournament, delay)
+    if calendar_winner_missing:
+        errors.append("unconfirmed_winner")
+
+    return tournament, errors
+
+
+def route_tournament(
+    tournament: Tournament,
+    errors: list[str],
+    icon: str | None,
+    output_dir: Path,
+    overwrite: bool,
+    counters: RouteCounters,
+) -> None:
+    """Step 7b: write the tournament to the appropriate destination.
+
+    Routing rules:
+      * validation errors  → ``output_dir/errors/<first_error>/<event_id>.yaml``
+      * merged forum icon  → ``output_dir/changes_required/<event_id>.yaml``
+      * otherwise          → ``output_dir/YYYY/MM/<event_id>.yaml`` (and any stale
+        ``changes_required`` copy is removed)
+
+    Mutates *counters* in place.
+    """
+    changes_required_dir = output_dir / "changes_required"
+
+    if errors:
+        error_dir = output_dir / "errors" / errors[0]
+        error_dir.mkdir(parents=True, exist_ok=True)
+        path = error_dir / tournament.yaml_filename
+        try:
+            path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
+            console.print(
+                f"[red]⚠[/red] {path.name}  {tournament.name}"
+                f"  [dim](errors: {', '.join(errors)})[/dim]"
+            )
+            counters.written += 1
+        except Exception as exc:
+            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.debug("Stack trace:", exc_info=True)
+            counters.failed += 1
+    elif icon == ICON_MERGED:
+        changes_required_dir.mkdir(parents=True, exist_ok=True)
+        path = changes_required_dir / tournament.yaml_filename
+        try:
+            path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
+            console.print(
+                f"[yellow]⚠[/yellow] {path.name}  {tournament.name}  [dim](changes required)[/dim]"
+            )
+            counters.written += 1
+        except Exception as exc:
+            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.debug("Stack trace:", exc_info=True)
+            counters.failed += 1
+    else:
+        try:
+            path = write_tournament_yaml(
+                tournament,
+                output_dir,
+                overwrite=overwrite,
+            )
+            console.print(f"[green]✓[/green] {path.name}  {tournament.name}")
+            counters.written += 1
+
+            stale = changes_required_dir / tournament.yaml_filename
+            if stale.exists():
+                stale.unlink()
+                console.print(f"[dim]  removed stale changes_required/{stale.name}[/dim]")
+        except FileExistsError as exc:
+            logger.debug("%s", exc)
+            counters.skipped += 1
+            counters.overwrite_skipped += 1
+        except Exception as exc:
+            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.debug("Stack trace:", exc_info=True)
+            counters.failed += 1
 
 
 # ---------------------------------------------------------------------------
@@ -295,11 +399,8 @@ def run(args: argparse.Namespace) -> int:
     Scraping workflow per tournament:
       1. Scrape forum data (fetch thread HTML).
       2. Parse data (extract Tournament from post text).
-      3. Check event calendar for the tournament name.
-      4. Check event calendar for the winner's name.
-      5. Look up the winner in the VEKN player registry.
-      6. Validate card information with the krcg library.
-      7. Validate content and route file to the appropriate destination.
+      3-7. Enrich, validate and route via :func:`process_tournament` /
+           :func:`route_tournament`.
     """
     setup_logging(args.verbose)
 
@@ -307,9 +408,7 @@ def run(args: argparse.Namespace) -> int:
     if args.last_page is not None:
         max_pages = args.last_page - args.start_page + 1
 
-    changes_required_dir = args.output_dir / "changes_required"
-
-    written = skipped = failed = overwrite_skipped = 0
+    counters = RouteCounters()
 
     with httpx.Client(headers=HEADERS, timeout=60.0) as client:
         # Steps 1-2: scrape forum data and parse it into Tournament objects
@@ -323,90 +422,31 @@ def run(args: argparse.Namespace) -> int:
                 console.print(
                     f"[yellow]─[/yellow] {tournament.name!r}  [dim](no event_id — skipped)[/dim]"
                 )
-                skipped += 1
+                counters.skipped += 1
                 continue
 
-            # Step 3: check event calendar for the tournament name
-            tournament = _check_calendar_name(client, tournament, args.delay)
+            # Steps 3-6: enrich and validate
+            tournament, errors = process_tournament(client, tournament, args.delay)
 
-            # Step 4: check event calendar for the winner's name
-            tournament, calendar_winner_missing = _check_calendar_winner(
-                client, tournament, args.delay
+            # Step 7: route file to the appropriate destination
+            route_tournament(
+                tournament,
+                errors,
+                icon=icon,
+                output_dir=args.output_dir,
+                overwrite=args.overwrite,
+                counters=counters,
             )
-
-            # Step 5: look up winner in VEKN player registry
-            tournament = _lookup_player(client, tournament, args.delay)
-
-            # Step 6: validate card information with krcg
-            tournament = _enrich_with_krcg(tournament)
-
-            # Step 7: validate content
-            errors = _validate_content(client, tournament, args.delay)
-            if calendar_winner_missing:
-                errors.append("unconfirmed_winner")
-
-            # Route file to the appropriate destination
-            if errors:
-                error_dir = args.output_dir / "errors" / errors[0]
-                error_dir.mkdir(parents=True, exist_ok=True)
-                path = error_dir / tournament.yaml_filename
-                try:
-                    path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
-                    console.print(
-                        f"[red]⚠[/red] {path.name}  {tournament.name}"
-                        f"  [dim](errors: {', '.join(errors)})[/dim]"
-                    )
-                    written += 1
-                except Exception as exc:
-                    console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
-                    logger.debug("Stack trace:", exc_info=True)
-                    failed += 1
-            elif icon == ICON_MERGED:
-                changes_required_dir.mkdir(parents=True, exist_ok=True)
-                path = changes_required_dir / tournament.yaml_filename
-                try:
-                    path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
-                    console.print(
-                        f"[yellow]⚠[/yellow] {path.name}  {tournament.name}"
-                        "  [dim](changes required)[/dim]"
-                    )
-                    written += 1
-                except Exception as exc:
-                    console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
-                    logger.debug("Stack trace:", exc_info=True)
-                    failed += 1
-            else:
-                try:
-                    path = write_tournament_yaml(
-                        tournament,
-                        args.output_dir,
-                        overwrite=args.overwrite,
-                    )
-                    console.print(f"[green]✓[/green] {path.name}  {tournament.name}")
-                    written += 1
-
-                    stale = changes_required_dir / tournament.yaml_filename
-                    if stale.exists():
-                        stale.unlink()
-                        console.print(f"[dim]  removed stale changes_required/{stale.name}[/dim]")
-                except FileExistsError as exc:
-                    logger.debug("%s", exc)
-                    skipped += 1
-                    overwrite_skipped += 1
-                except Exception as exc:
-                    console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
-                    logger.debug("Stack trace:", exc_info=True)
-                    failed += 1
 
     console.rule()
     console.print(
-        f"Done — [green]{written} written[/green], "
-        f"[yellow]{skipped} skipped[/yellow], "
-        f"[red]{failed} failed[/red]"
+        f"Done — [green]{counters.written} written[/green], "
+        f"[yellow]{counters.skipped} skipped[/yellow], "
+        f"[red]{counters.failed} failed[/red]"
     )
-    if overwrite_skipped:
+    if counters.overwrite_skipped:
         console.print(
-            f"[yellow]![/yellow] {overwrite_skipped} deck(s) already existed "
+            f"[yellow]![/yellow] {counters.overwrite_skipped} deck(s) already existed "
             f"and were not overwritten (use --overwrite to replace them)."
         )
-    return 1 if failed else 0
+    return 1 if counters.failed else 0

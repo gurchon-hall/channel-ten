@@ -106,3 +106,6 @@ def write_tournament_yaml(
     path = dest / tournament.yaml_filename
     path.write_text(new_content, encoding="utf-8")
     return path
+
+
+find_existing_yaml = _find_existing_yaml

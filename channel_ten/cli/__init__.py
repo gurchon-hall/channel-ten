@@ -7,7 +7,7 @@ Usage examples in README file
 import argparse
 import sys
 
-from channel_ten.cli import parse, publish, scrape, validate
+from channel_ten.cli import parse, publish, reimport, scrape, validate
 from channel_ten.cli._common import SubParsersAction, reconfigure_windows_stdio
 
 
@@ -18,6 +18,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub: SubParsersAction = parser.add_subparsers(dest="command", required=True)
     scrape.register(sub)
+    reimport.register(sub)
     parse.register(sub)
     publish.register(sub)
     validate.register(sub)

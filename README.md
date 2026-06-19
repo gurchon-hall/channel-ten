@@ -4,6 +4,7 @@ Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net
 
 [![Pre-commit checks](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml)
 [![Scrape VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml)
+[![Import VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/import.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/import.yml)
 [![Validate VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml)
 [![Publish TWD Deck PRs](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml)
 
@@ -14,6 +15,8 @@ Each tournament produces one YAML file named `{event_id}.yaml` where `event_id` 
 Data files are stored in the dedicated repository [gurchon-hall/eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance), organized as `YYYY/MM/<event_id>.yaml`.
 
 This convention mirrors the [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) archive, which uses `decks/{event_id}.txt`.
+
+The forum is not the complete record: some TWDs only ever made it into the GiottoVerducci/TWD archive. The `import` command backfills those — it imports every `decks/{event_id}.txt` whose `event_id` is **not already present in the base**, running each through the same enrichment/validation pipeline as `scrape`.
 
 ## Installation
 
@@ -48,6 +51,12 @@ channel-ten scrape --overwrite
 
 # Write output to a custom directory (e.g. a local clone of eternal-vigilance)
 channel-ten scrape --output-dir ../eternal-vigilance
+
+# Import TWDs from GiottoVerducci/TWD that are not already in the base
+channel-ten import --output-dir ../eternal-vigilance
+
+# Use a token (raises the GitHub deck-listing rate limit) and cap the run for testing
+GITHUB_TOKEN=ghp_xxx channel-ten import --limit 5
 
 # Parse a single local .txt file to YAML (prints to stdout)
 channel-ten parse decks/8470.txt
@@ -114,6 +123,7 @@ The `.pre-commit-config.yaml` runs the following checks on every commit:
 | `ruff format` | Format with ruff |
 | `pytest` | Full test suite |
 | `cli smoke: scrape --help` | Verify the `scrape` subcommand loads cleanly |
+| `cli smoke: import --help` | Verify the `import` subcommand loads cleanly |
 | `cli smoke: parse --help` | Verify the `parse` subcommand loads cleanly |
 | `cli smoke: publish --help` | Verify the `publish` subcommand loads cleanly |
 
@@ -127,6 +137,12 @@ The workflow in `.github/workflows/scrape.yml`:
 - Also triggered on push to `main` when source files change
 - Can be triggered manually with optional `start_page`, `last_page`, and `overwrite` inputs
 - Scrapes the forum and commits new YAML files to [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance)
+
+The workflow in `.github/workflows/import.yml`:
+
+- Runs every Monday at 07:00 UTC
+- Can be triggered manually with optional `limit` and `overwrite` inputs
+- Imports decks from [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) whose `event_id` is not yet in [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance) and commits the new YAML files
 
 The workflow in `.github/workflows/validate.yml`:
 
@@ -187,9 +203,10 @@ channel_ten/
 ├── cli/
 │   ├── __init__.py        # CLI entry point (channel-ten) and argparse setup
 │   ├── _common.py         # CLI shared utilities
+│   ├── importer.py        # CLI command: import decks from GiottoVerducci/TWD
 │   ├── parse.py           # CLI command: parse .txt ↔ .yaml
 │   ├── publish.py         # CLI command: publish decks to GitHub
-│   ├── scrape.py          # CLI command: scrape the VEKN forum
+│   ├── scrape.py          # CLI command: scrape the VEKN forum (+ shared pipeline)
 │   └── validate.py        # CLI command: re-validate published YAML files
 ├── output/
 │   ├── __init__.py
@@ -207,6 +224,7 @@ channel_ten/
 │   ├── _forum.py          # Forum index traversal and TWD extraction
 │   ├── _http.py           # Low-level HTTP helpers and constants
 │   ├── _icons.py          # Topic icon detection
+│   ├── _twda.py           # GiottoVerducci/TWD archive listing and fetching
 │   └── _vekn.py           # VEKN event calendar and player registry lookups
 ├── models.py              # Pydantic data models
 ├── publisher.py           # GitHub PR publisher
@@ -231,6 +249,7 @@ tests/
 .github/
 └── workflows/
     ├── scrape.yml         # CRON scrape at 06:00 UTC every day
+    ├── import.yml         # CRON import from GiottoVerducci/TWD at 07:00 UTC every Monday
     ├── validate.yml       # CRON re-validate at 20:00 UTC every Sunday
     ├── publish.yml        # CRON publish at 08:00 UTC every Monday
     ├── pre-commit.yml     # Pre-commit checks on push / PR
