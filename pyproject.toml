@@ -21,6 +21,18 @@ dependencies = [
     "rich>=13.0",            # Pretty terminal output
 ]
 
+[project.urls]
+Homepage = "https://github.com/gurchon-hall/channel-ten"
+Repository = "https://github.com/gurchon-hall/channel-ten.git"
+Issues = "https://github.com/gurchon-hall/channel-ten/issues"
+Changelog = "https://github.com/gurchon-hall/channel-ten/blob/main/CHANGELOG.rst"
+
+[project.scripts]
+channel-ten = "channel_ten.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["channel_ten*"]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0",           # 9.0+ required for Python 3.14 compatibility
@@ -36,12 +48,6 @@ dev = [
     "types-html5lib",
     "types-requests",
 ]
-
-[project.scripts]
-channel-ten = "channel_ten.cli:main"
-
-[tool.setuptools.packages.find]
-include = ["channel_ten*"]
 
 # ---------------------------------------------------------------------------
 # Ruff (linter/formatter)
