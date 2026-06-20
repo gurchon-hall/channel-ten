@@ -26,6 +26,8 @@ def _fmt_crypt_card(card: CryptCard) -> str:
         line += " " * 11
     if not line.endswith(" "):
         line += " "
+    if card.path:
+        line += f"{card.path.split()[0]:<8}"
     line += f"{card.clan}:{card.grouping}"
     if card.comment:
         line = f"{line} -- {card.comment}"

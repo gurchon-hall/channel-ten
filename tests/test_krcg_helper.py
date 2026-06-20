@@ -55,6 +55,7 @@ def _make_crypt_card(
     disciplines: list[str] | None = None,
     clans: list[str] | None = None,
     title: str | None = None,
+    path: str | None = None,
     variants: dict[Any, Any] | None = None,
 ) -> MagicMock:
     card = MagicMock()
@@ -66,8 +67,81 @@ def _make_crypt_card(
     card.disciplines = ["PRO", "ani"] if disciplines is None else disciplines
     card.clans = ["Gangrel"] if clans is None else clans
     card.title = title
+    card.path = path
     card.variants = {} if variants is None else variants
     return card
+
+
+# ---------------------------------------------------------------------------
+# _strip_group_suffix
+# ---------------------------------------------------------------------------
+
+
+class TestStripGroupSuffix:
+    def test_removes_group_number(self):
+        assert kh._strip_group_suffix("Nathan Turner (G6)") == "Nathan Turner"
+
+    def test_removes_group_with_adv_keeps_adv(self):
+        assert kh._strip_group_suffix("Tariq (G6 ADV)") == "Tariq (ADV)"
+
+    def test_lone_adv_unchanged(self):
+        assert kh._strip_group_suffix("Tariq (ADV)") == "Tariq (ADV)"
+
+    def test_no_suffix_unchanged(self):
+        assert kh._strip_group_suffix("Anarch Convert") == "Anarch Convert"
+
+    def test_case_insensitive(self):
+        assert kh._strip_group_suffix("Mina (g3 adv)") == "Mina (ADV)"
+
+
+# ---------------------------------------------------------------------------
+# _ensure_i18n_loaded
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureI18nLoaded:
+    def setup_method(self):
+        _reset_state()
+
+    def teardown_method(self):
+        _reset_state()
+
+    def test_no_op_when_krcg_not_loaded(self):
+        kh._krcg_loaded = False
+        kh._ensure_i18n_loaded()
+        assert kh._i18n_ensured is False
+
+    def test_no_op_when_already_ensured(self):
+        kh._krcg_loaded = True
+        kh._i18n_ensured = True
+        mock_krcg, mock_vtes = _make_krcg_mock()
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+        mock_vtes.VTES.load_from_vekn.assert_not_called()
+
+    def test_skips_load_from_vekn_when_probe_resolves(self):
+        kh._krcg_loaded = True
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=MagicMock())
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+        mock_vtes.VTES.load_from_vekn.assert_not_called()
+        assert kh._i18n_ensured is True
+
+    def test_calls_load_from_vekn_when_probe_misses(self):
+        kh._krcg_loaded = True
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=None)
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+        mock_vtes.VTES.load_from_vekn.assert_called_once()
+        assert kh._i18n_ensured is True
+
+    def test_idempotent_load_from_vekn_called_once(self):
+        kh._krcg_loaded = True
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=None)
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+            kh._ensure_i18n_loaded()  # second call must be a no-op
+        mock_vtes.VTES.load_from_vekn.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +284,20 @@ class TestGetAllVampVariants:
         assert "disciplines" in entry and "PRO" in entry["disciplines"]
         assert "clan" in entry and entry["clan"] == "Gangrel"
         assert "grouping" in entry and entry["grouping"] == 6
+        # Non-path vampire: path key present but None.
+        assert "path" in entry and entry["path"] is None
+
+    def test_returns_path_when_present(self):
+        mock_card = _make_crypt_card(path="Power and the Inner Voice")
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=mock_card)
+        mock_vtes.VTES.get.return_value = mock_card
+        kh._krcg_loaded = True
+        kh._seen_cards.add(1001)
+        kh._cards_loaded[1001] = mock_card
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            result = kh.get_all_vamp_variants("Aaradhya, The Callous Tyrant")
+        assert len(result) == 1
+        assert "path" in result[0] and result[0]["path"] == "Power and the Inner Voice"
 
     def test_skips_adv_when_looking_up_base(self):
         mock_adv = _make_crypt_card(adv=True)
@@ -341,19 +429,21 @@ class TestGetAllVampVariants:
             result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1  # bad_card skipped (group not int-convertible)
 
-    def test_outer_exception_returns_empty_list(self):
-        """Unexpected exception in the outer try block returns []."""
+    def test_outer_unexpected_exception_propagates(self):
+        """Unexpected exceptions (not KeyError/AttributeError/TypeError/ValueError) propagate."""
         main_card = _make_crypt_card(card_id=1001, variants={})
 
         def _mock_search(key: str | int):
             if key == "Nathan Turner":
                 return main_card
-            raise RuntimeError("unexpected!")  # propagates to outer except
+            raise RuntimeError("unexpected!")  # not in the caught set → propagates
 
         kh._krcg_loaded = True
+        import pytest
+
         with patch.object(kh, "krcg_card_search", side_effect=_mock_search):
-            result = kh.get_all_vamp_variants("Nathan Turner")
-        assert result == []
+            with pytest.raises(RuntimeError, match="unexpected!"):
+                kh.get_all_vamp_variants("Nathan Turner")
 
 
 # ---------------------------------------------------------------------------

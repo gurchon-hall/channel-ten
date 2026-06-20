@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from conftest import make_tournament
+from conftest import make_deck, make_tournament
 
 from channel_ten.models import (
     CryptCard,
@@ -26,32 +26,10 @@ from channel_ten.output.yaml import (
     write_tournament_yaml,
 )
 
-_OUTPUT_DECK = Deck(
+_OUTPUT_DECK = make_deck(
     name="Test Deck",
     created_by="John Smith",
     description="A test description.",
-    crypt=[
-        CryptCard(
-            count=2,
-            name="Nathan Turner",
-            capacity=4,
-            disciplines="PRO ani",
-            clan="Gangrel",
-            grouping=6,
-        ),
-    ],
-    crypt_count=2,
-    crypt_min=4,
-    crypt_max=4,
-    crypt_avg=4.0,
-    library_sections=[
-        LibrarySection(
-            name="Master",
-            count=1,
-            cards=[LibraryCard(count=1, name="Blood Doll")],
-        )
-    ],
-    library_count=1,
 )
 
 
@@ -159,6 +137,36 @@ class TestFmtCryptCard:
         )
         line = _fmt_crypt_card(card)
         assert "-- very useful" in line
+
+    def test_with_path(self):
+        card = CryptCard(
+            count=1,
+            name="Aaradhya, The Callous Tyrant",
+            capacity=10,
+            disciplines="ANI DOM FOR POT PRE",
+            title="cardinal",
+            clan="Ventrue",
+            grouping=6,
+            path="Power and the Inner Voice",
+        )
+        line = _fmt_crypt_card(card)
+        # first word of the path is rendered; full phrase is not
+        assert "Power" in line
+        assert "Power and the Inner Voice" not in line
+        assert line.index("Power") < line.index("Ventrue:6")
+
+    def test_without_path_omits_token(self):
+        card = CryptCard(
+            count=2,
+            name="Nathan Turner",
+            capacity=4,
+            disciplines="PRO ani",
+            clan="Gangrel",
+            grouping=6,
+        )
+        line = _fmt_crypt_card(card)
+        # No path: line ends at clan:grouping, nothing extra inserted before it
+        assert line.rstrip().endswith("Gangrel:6")
 
     def test_without_title_spacer(self):
         card = CryptCard(
@@ -306,7 +314,7 @@ class TestTournamentToTxt:
         assert "Jane Doe" in txt
         assert "https://www.vekn.net/event-calendar/event/9999" in txt
 
-    def test_multiday_date(self):
+    def test_multiday_date_range(self):
         t = make_tournament(
             deck=_OUTPUT_DECK, date_start=date(2023, 3, 25), date_end=date(2023, 3, 26)
         )
@@ -363,7 +371,7 @@ class TestTournamentToTxt:
         assert "Description:" in txt
         assert "A test description." in txt
 
-    def test_no_deck_metadata_block_when_absent(self):
+    def test_metadata_omitted_when_absent(self):
         deck = Deck(
             crypt=[
                 CryptCard(

@@ -55,7 +55,12 @@ def is_krcg_loaded() -> bool:
 
 
 def krcg_card_search(card_name_or_id: str | int) -> Any:
-    """Search for a card by name in KRCG's VTES database. Returns the Card or None."""
+    """Search for a card by name in KRCG's VTES database.
+
+    Returns a krcg ``Card`` object, or ``None`` when the card is not found.
+    Typed as ``Any`` because krcg is an optional dependency whose ``Card``
+    class cannot be imported unconditionally.
+    """
     if not is_krcg_loaded():
         return None
 
@@ -186,6 +191,8 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
     - ``title``       - title string or ``None``
     - ``clan``        - primary clan name string
     - ``grouping``    - group number (int) or ``"ANY"`` for group-independent cards
+    - ``path``        - V5 Sabbat path string or ``None`` (requires a krcg build
+      that exposes ``Card.path``; degrades to ``None`` otherwise)
     """
     card = krcg_card_search(vamp_name)
     if not card or not card.crypt:
@@ -227,17 +234,19 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
                     grouping = int(raw_group)
                 except TypeError, ValueError:
                     continue
+            _path = getattr(card_from_id, "path", None)
             entry: Crypt_Card_Dict = {
                 "capacity": card_from_id.capacity,
                 "disciplines": disciplines,
                 "title": card_from_id.title or None,
                 "clan": clan,
                 "grouping": grouping,
+                "path": _path if _path else None,  # coerce "" to None
             }
             result.append(entry)
 
         return result
-    except Exception:
+    except KeyError, AttributeError, TypeError, ValueError:
         return []
 
 

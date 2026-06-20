@@ -1,7 +1,6 @@
 """Strict and lenient header parsers for TWD posts."""
 
 import re
-from datetime import date
 
 from channel_ten.models import Tournament
 from channel_ten.parser import _helpers as helpers
@@ -113,7 +112,7 @@ def parse_header_lenient(lines: list[str]) -> Tournament:
     return Tournament(
         name=name or "",
         location=location or "",
-        date_start=date_start or date(1994, 1, 1),
+        date_start=date_start or "",
         date_end=date_end,
         rounds_format=rounds_format or "",
         players_count=players_count or "",

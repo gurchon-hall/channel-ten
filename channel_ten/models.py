@@ -39,6 +39,7 @@ class Crypt_Card_Dict(TypedDict, total=False):
     title: str | None
     clan: str
     grouping: int | str
+    path: str | None
     comment: str | None
 
 
@@ -79,6 +80,8 @@ class CryptCard(BaseModel):
     title: str | None = None  # e.g. "Primogen" (not always present)
     clan: str
     grouping: int | str  # int for normal groups (1–8); "ANY" for group-independent cards
+    # V5 Sabbat path (Caine, Cathari, Death and the Soul, Power and the Inner Voice)
+    path: str | None = None
     comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
 
 

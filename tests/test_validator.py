@@ -1,8 +1,10 @@
 """Tests for channel_ten.validator."""
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
+
+import pytest
 
 from channel_ten.models import (
     Crypt_Card_Dict,
@@ -99,11 +101,11 @@ class TestMandatoryFields:
     def test_missing_event_url(self):
         assert "illegal_header" in error_types(_tournament(event_url=None))
 
-    def test_missing_forum_post_url(self):
-        assert "illegal_header" in error_types(_tournament(forum_post_url=None))
+    def test_missing_forum_post_url_is_allowed(self):
+        assert "illegal_header" not in error_types(_tournament(forum_post_url=None))
 
-    def test_empty_forum_post_url(self):
-        assert "illegal_header" in error_types(_tournament(forum_post_url=""))
+    def test_empty_forum_post_url_is_allowed(self):
+        assert "illegal_header" not in error_types(_tournament(forum_post_url=""))
 
     def test_limited_format(self):
         assert "limited_format" in error_types(_tournament(name="Limited Edition Cup"))
@@ -494,55 +496,6 @@ class TestFixCardSections:
 # enrich_crypt_cards
 # ---------------------------------------------------------------------------
 
-# Fake krcg data used in tests: card name → single dict or list of dicts (multi-version)
-_FAKE_CRYPT_KRCG: dict[str, dict[str, str | int | None] | list[dict[str, str | int | None]]] = {
-    "Nathan Turner": {
-        "capacity": 4,
-        "disciplines": "PRO ani",
-        "title": None,
-        "clan": "Gangrel",
-        "grouping": 6,
-    },
-    "Antón de Concepción": {
-        "capacity": 8,
-        "disciplines": "AUS DOM OBF for",
-        "title": "Prince",
-        "clan": "Lasombra",
-        "grouping": 6,
-    },
-    "Anarch Convert": {
-        "capacity": 1,
-        "disciplines": "",
-        "title": None,
-        "clan": "Caitiff",
-        "grouping": "ANY",
-    },
-    # Xaviar: base and ADV are separate entries (different names in the lookup)
-    "Xaviar": {
-        "capacity": 11,
-        "disciplines": "ANI CEL FOR PRO",
-        "title": "Justicar",
-        "clan": "Gangrel",
-        "grouping": 3,
-    },
-    "Xaviar (ADV)": {
-        "capacity": 10,
-        "disciplines": "aus cel pot ABO ANI FOR PRO",
-        "title": "Justicar",
-        "clan": "Gangrel",
-        "grouping": 3,
-    },
-}
-
-
-def _fake_krcg_all_crypt_data(card_name: str) -> list[dict[str, str | int | None]]:
-    data = _FAKE_CRYPT_KRCG.get(card_name)
-    if data is None:
-        return []
-    if isinstance(data, list):
-        return data
-    return [data]
-
 
 def _crypt_card(name: str, count: int = 2, **overrides: Any) -> Crypt_Card_Dict:
     base = Crypt_Card_Dict(
@@ -561,17 +514,31 @@ def _crypt_card(name: str, count: int = 2, **overrides: Any) -> Crypt_Card_Dict:
 
 
 class TestEnrichCryptCards:
+    @pytest.fixture(autouse=True)
+    def _inject_krcg(self, fake_crypt_krcg: dict[str, Any]) -> None:
+        """Inject a per-test deep copy of the fake krcg data — safe to mutate."""
+        self.krcg_data = fake_crypt_krcg
+
     def _patch_krcg(self, available: bool = True):
         import contextlib
 
+        krcg_data = self.krcg_data
+
         @contextlib.contextmanager
         def _ctx():
-            krcg_fn = (  # pyright: ignore[reportUnknownVariableType]
-                _fake_krcg_all_crypt_data if available else (lambda _: [])  # pyright: ignore[reportUnknownLambdaType]
-            )
+            def _lookup(name: str) -> list[Any]:
+                data = krcg_data.get(name)
+                if data is None:
+                    return []
+                return cast(list[Any], data) if isinstance(data, list) else [data]
+
+            def _fallback_lookup(_: str) -> list[Any]:
+                return []
+
+            fn = _lookup if available else _fallback_lookup
             with patch(
                 "channel_ten.validator.get_all_vamp_variants",
-                side_effect=krcg_fn,
+                side_effect=fn,
             ):
                 yield
 
@@ -588,6 +555,21 @@ class TestEnrichCryptCards:
         assert "clan" in card and card["clan"] == "Gangrel"
         assert "grouping" in card and card["grouping"] == 6
         assert "title" in card and card["title"] is None
+
+    def test_path_enriched_from_krcg(self):
+        card = _crypt_card("Aaradhya, The Callous Tyrant")
+        deck = _deck(crypt=[card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert "path" in card and card["path"] == "Power and the Inner Voice"
+
+    def test_path_is_none_for_non_path_vampires(self):
+        """Non-path vampires must have path explicitly set to None after enrichment."""
+        card = _crypt_card("Nathan Turner")
+        deck = _deck(crypt=[card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert card.get("path") is None
 
     def test_count_and_name_preserved(self):
         card = _crypt_card("Nathan Turner", count=3)
@@ -671,13 +653,14 @@ class TestEnrichCryptCards:
 
     def test_multi_version_picks_matching_group(self):
         """When a vampire has two grouping versions, pick the one that fits."""
-        _FAKE_CRYPT_KRCG["Nathan Turner"] = [
+        self.krcg_data["Nathan Turner"] = [
             {
                 "capacity": 4,
                 "disciplines": "PRO ani",
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 5,
+                "path": None,
             },
             {
                 "capacity": 4,
@@ -685,33 +668,26 @@ class TestEnrichCryptCards:
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 6,
+                "path": None,
             },
         ]
-        try:
-            single_card = _crypt_card("Antón de Concepción", grouping=6)  # krcg group=6
-            multi_card = _crypt_card("Nathan Turner", grouping=0)
-            deck = Deck_Dict(crypt=[single_card, multi_card])
-            with self._patch_krcg():
-                enrich_crypt_cards(deck)
-            assert "grouping" in multi_card and multi_card["grouping"] == 6
-        finally:
-            _FAKE_CRYPT_KRCG["Nathan Turner"] = {
-                "capacity": 4,
-                "disciplines": "PRO ani",
-                "title": None,
-                "clan": "Gangrel",
-                "grouping": 6,
-            }
+        single_card = _crypt_card("Antón de Concepción", grouping=6)
+        multi_card = _crypt_card("Nathan Turner", grouping=0)
+        deck = Deck_Dict(crypt=[single_card, multi_card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert "grouping" in multi_card and multi_card["grouping"] == 6
 
     def test_multi_version_fallback_to_first_when_no_match(self):
         """When no version fits the range, use the first version found."""
-        _FAKE_CRYPT_KRCG["Nathan Turner"] = [
+        self.krcg_data["Nathan Turner"] = [
             {
                 "capacity": 4,
                 "disciplines": "PRO ani",
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 3,
+                "path": None,
             },
             {
                 "capacity": 4,
@@ -719,42 +695,35 @@ class TestEnrichCryptCards:
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 6,
+                "path": None,
             },
         ]
-        _FAKE_CRYPT_KRCG["_RefCard_G10"] = {
+        self.krcg_data["_RefCard_G10"] = {
             "capacity": 5,
             "disciplines": "",
             "title": None,
             "clan": "Gangrel",
             "grouping": 10,
+            "path": None,
         }
-        try:
-            single_card = _crypt_card("_RefCard_G10")  # krcg group=10
-            multi_card = _crypt_card("Nathan Turner", grouping=0)
-            deck = Deck_Dict(crypt=[single_card, multi_card])
-            with self._patch_krcg():
-                enrich_crypt_cards(deck)
-            # G3→{3,10} not consecutive; G6→{6,10} not consecutive → fallback to first (G3)
-            assert "grouping" in multi_card and multi_card["grouping"] == 3
-        finally:
-            _FAKE_CRYPT_KRCG["Nathan Turner"] = {
-                "capacity": 4,
-                "disciplines": "PRO ani",
-                "title": None,
-                "clan": "Gangrel",
-                "grouping": 6,
-            }
-            del _FAKE_CRYPT_KRCG["_RefCard_G10"]
+        single_card = _crypt_card("_RefCard_G10")
+        multi_card = _crypt_card("Nathan Turner", grouping=0)
+        deck = Deck_Dict(crypt=[single_card, multi_card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        # G3→{3,10} not consecutive; G6→{6,10} not consecutive → fallback to first (G3)
+        assert "grouping" in multi_card and multi_card["grouping"] == 3
 
     def test_multi_version_no_reference_uses_first(self):
         """When all crypt cards are multi-version, fall back to first version."""
-        _FAKE_CRYPT_KRCG["Nathan Turner"] = [
+        self.krcg_data["Nathan Turner"] = [
             {
                 "capacity": 4,
                 "disciplines": "PRO ani",
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 5,
+                "path": None,
             },
             {
                 "capacity": 4,
@@ -762,23 +731,15 @@ class TestEnrichCryptCards:
                 "title": None,
                 "clan": "Gangrel",
                 "grouping": 6,
+                "path": None,
             },
         ]
-        try:
-            multi_card = _crypt_card("Nathan Turner", grouping=0)
-            deck = Deck_Dict(crypt=[multi_card])
-            with self._patch_krcg():
-                enrich_crypt_cards(deck)
-            # No fixed reference → fallback to first version (G5)
-            assert "grouping" in multi_card and multi_card["grouping"] == 5
-        finally:
-            _FAKE_CRYPT_KRCG["Nathan Turner"] = {
-                "capacity": 4,
-                "disciplines": "PRO ani",
-                "title": None,
-                "clan": "Gangrel",
-                "grouping": 6,
-            }
+        multi_card = _crypt_card("Nathan Turner", grouping=0)
+        deck = Deck_Dict(crypt=[multi_card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        # No fixed reference → fallback to first version (G5)
+        assert "grouping" in multi_card and multi_card["grouping"] == 5
 
 
 # ---------------------------------------------------------------------------

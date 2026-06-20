@@ -8,6 +8,7 @@ Error types
 Mandatory tournament fields
   illegal_header     : any of name, location, date_start, rounds_format,
                        players_count, or event_url is absent or blank
+                       (forum_post_url is optional — hand-crafted files may omit it)
   unconfirmed_winner : winner is absent/blank, or vekn_number is absent/None
   limited_format     : tournament name contains "Limited" (draft/limited event)
 
@@ -19,7 +20,7 @@ Mandatory deck fields
                    its card counts, or deck.library_count != sum of section counts
 
 Player count
-  too_few_players : players_count is present but below the minimum of 12
+  too_few_players : players_count is present but below MIN_PLAYERS (default 12, env-configurable)
 
 Date coherence (requires a calendar_date from the VEKN event calendar)
   incoherent_date : date_start in the file does not match the official date
@@ -29,6 +30,7 @@ determines the error directory used by the CLI validate command.
 """
 
 import logging
+import os
 from datetime import date
 from typing import Any, cast
 
@@ -50,6 +52,7 @@ from channel_ten.models import (
 )
 
 _logger = logging.getLogger(__name__)
+MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "12"))
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers
@@ -175,23 +178,29 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
     if not isinstance(library_sections, list) or not library_sections:
         return []
 
-    # --- Pass 1: detect misassigned cards ---
+    # --- Pass 1: detect misassigned cards and cards in nameless sections ---
     all_cards: list[tuple[str, Library_Card_Dict]] = []
     fixes: list[str] = []
     any_moved = False
 
     for section in library_sections:
         section_name = str(section.get("name") or "")
+        is_nameless = not section_name
         cards_in_section = section.get("cards") or []
         for card in cards_in_section:
             card_name = str(card.get("name") or "")
             expected = get_library_card_type(card_name)
-            if expected is None or expected == section_name:
-                all_cards.append((section_name, card))
-            else:
+            if expected is not None and expected != section_name:
                 fixes.append(f"  {card_name!r}: {section_name!r} → {expected!r}")
                 all_cards.append((expected, card))
                 any_moved = True
+            elif is_nameless:
+                # Card in a nameless section that krcg couldn't type: still flag
+                # the section for removal; the card is dropped (count mismatch
+                # will surface this via illegal_library validation).
+                any_moved = True
+            else:
+                all_cards.append((section_name, card))
 
     if not any_moved:
         return []
@@ -211,6 +220,8 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
 
     new_sections: list[Library_Section_Dict] = []
     for section_name in sorted(sections_map, key=_order):
+        if not section_name:
+            continue  # drop the nameless catch-all; count mismatch surfaces via illegal_library
         cards = sections_map[section_name]
         count = sum([c.get("count", 0) for c in cards])
         entry = cast(
@@ -333,7 +344,6 @@ def error_types(data: Tournament_Dict, calendar_date: date | None = None) -> lis
         or not data.get("rounds_format")
         or not data.get("players_count")
         or not data.get("event_url")
-        or not data.get("forum_post_url")
     ):
         errors.append("illegal_header")
     if not data.get("winner") or not data.get("vekn_number"):
@@ -391,7 +401,7 @@ def error_types(data: Tournament_Dict, calendar_date: date | None = None) -> lis
 
     # --- Player count floor ---
     players_count: int = data.get("players_count") or 0
-    if 0 < players_count < 12:
+    if 0 < players_count < MIN_PLAYERS:
         errors.append("too_few_players")
 
     # --- Date coherence (only when calendar_date was fetched) ---
