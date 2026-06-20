@@ -12,31 +12,6 @@ starting from v0.1.0.
 
 ----
 
-v0.5.0 — 2026-06-19
-====================
-
-Major architectural shift: TWD data is now hosted externally in the
-``eternal-vigilance`` repository.  The project itself was also renamed from its
-working title to **Channel 10**.
-
-Added
------
-- Import layer for ``GiottoVerducci/TWD`` backfill (``29ffab7``).
-- Canonicalization of crypt card names during the enrichment step (``c4b4728``).
-- Enhanced KRCG card-name handling: fuzzy lookup, ADV/non-ADV disambiguation,
-  and grouping-aware vampire resolution (``100fe13``).
-
-Changed
--------
-- Project renamed to **Channel 10**; repository moved to
-  ``gurchon-hall/channel-ten`` (``027e3e6``, ``f421bd9``).
-- TWD YAML data externalised to the ``eternal-vigilance`` repository
-  (``97a0f0b``).
-- Publish reports moved to ``eternal-vigilance`` (``3536f28``).
-- Workflow names updated for consistency (``d1dbd97``, ``c117bef``).
-
-----
-
 Unreleased — 2026-06-20
 ======================
 
@@ -61,6 +36,31 @@ Fixed
 -----
 - Resolved edge cases around card enrichment and metadata display for path-aware
   vampires.
+
+----
+
+v0.5.0 — 2026-06-19
+====================
+
+Major architectural shift: TWD data is now hosted externally in the
+``eternal-vigilance`` repository.  The project itself was also renamed from its
+working title to **Channel 10**.
+
+Added
+-----
+- Import layer for ``GiottoVerducci/TWD`` backfill (``29ffab7``).
+- Canonicalization of crypt card names during the enrichment step (``c4b4728``).
+- Enhanced KRCG card-name handling: fuzzy lookup, ADV/non-ADV disambiguation,
+  and grouping-aware vampire resolution (``100fe13``).
+
+Changed
+-------
+- Project renamed to **Channel 10**; repository moved to
+  ``gurchon-hall/channel-ten`` (``027e3e6``, ``f421bd9``).
+- TWD YAML data externalised to the ``eternal-vigilance`` repository
+  (``97a0f0b``).
+- Publish reports moved to ``eternal-vigilance`` (``3536f28``).
+- Workflow names updated for consistency (``d1dbd97``, ``c117bef``).
 
 ----
 
