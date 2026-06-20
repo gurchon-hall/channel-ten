@@ -157,7 +157,9 @@ def canonical_crypt_name(name: str) -> str:
     advanced version.
 
     When krcg resolves *name* (including localized or suffixed spellings), the card's
-    ``printed_name`` is returned, plus ``" (ADV)"`` for advanced cards. Otherwise the
+    ``printed_name`` is returned (krcg's official spelling, e.g. ``The Horde``), plus
+    ``" (ADV)"`` for advanced cards. Reconciling that spelling to a particular
+    reference dataset's sort order is the consumer's responsibility. Otherwise the
     input is returned with any trailing ``(G#)`` group marker stripped, leaving a
     bare name for genuine typos / unknown cards.
     """
