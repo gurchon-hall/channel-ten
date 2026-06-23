@@ -4,7 +4,7 @@ Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net
 
 [![Pre-commit checks](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml)
 [![Scrape VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml)
-[![Import VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/import.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/import.yml)
+[![TWD resync archive](https://github.com/gurchon-hall/channel-ten/actions/workflows/twda-reimport.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/twda-reimport.yml)
 [![Validate VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml)
 [![Publish TWD Deck PRs](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml)
 
