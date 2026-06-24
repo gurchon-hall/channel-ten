@@ -509,6 +509,46 @@ class TestTournamentToYamlStr:
         assert "date_start: 2026-03-15" in result
         assert "date_start: '2026-03-15'" not in result
 
+    def test_card_ids_rendered_when_present(self):
+        """Crypt and library card ids must appear as bare integers in the YAML."""
+        deck = Deck(
+            crypt=[
+                CryptCard(
+                    count=1,
+                    name="Nathan Turner",
+                    capacity=4,
+                    disciplines="PRO",
+                    clan="Gangrel",
+                    grouping=6,
+                    id=200013,
+                )
+            ],
+            crypt_count=1,
+            crypt_min=4,
+            crypt_max=4,
+            crypt_avg=4.0,
+            library_sections=[
+                LibrarySection(
+                    name="Master",
+                    count=1,
+                    cards=[LibraryCard(count=1, name="Blood Doll", id=100038)],
+                )
+            ],
+            library_count=1,
+        )
+        t = make_tournament(deck=deck)
+        result = tournament_to_yaml_str(t)
+        assert "id: 200013" in result
+        assert "id: 100038" in result
+
+    def test_card_id_omitted_when_absent(self):
+        """A card without an id must not emit an `id:` key (None is filtered out)."""
+        t = make_tournament(deck=_OUTPUT_DECK)
+        result = tournament_to_yaml_str(t)
+        # `event_id:` legitimately contains "id:" — assert no standalone `id:` key.
+        id_keys = [line for line in result.splitlines() if line.strip().startswith("id:")]
+        assert id_keys == []
+
     def test_event_id_rendered_as_int(self):
         """event_id must be a bare integer, not a quoted string."""
         t = make_tournament(

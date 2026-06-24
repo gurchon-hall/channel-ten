@@ -36,6 +36,7 @@ from channel_ten.scraper import (
     scrape_forum,
 )
 from channel_ten.validator import (
+    add_card_ids,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
@@ -179,6 +180,7 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
 
     crypt_fixes = enrich_crypt_cards(deck_data)
     section_fixes = fix_card_sections(deck_data)
+    ids_changed = add_card_ids(deck_data)
 
     if crypt_fixes:
         console.print(
@@ -190,7 +192,7 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
             + "\n".join(section_fixes)
         )
 
-    if crypt_fixes or section_fixes:
+    if crypt_fixes or section_fixes or ids_changed:
         data["deck"] = deck_data
         return Tournament.model_validate(data)
 

@@ -149,6 +149,8 @@ def enrich_crypt_cards(deck: Deck_Dict) -> list[str]:
         best_plain = cast(dict[str, Any], best)
         card_plain = cast(dict[str, Any], card)
         for field, new_value in best_plain.items():
+            if field == "id":  # owned by add_card_ids; not a crypt "fix"
+                continue
             old_value = card_plain.get(field)
             if old_value != new_value:
                 card_plain[field] = new_value
@@ -290,6 +292,40 @@ def canonicalize_card_names(deck: Deck_Dict) -> list[str]:
             card["name"] = new_name
             fixes.append(f"  {old_name!r} → {new_name!r}")
     return fixes
+
+
+def add_card_ids(deck: Deck_Dict) -> bool:
+    """Populate each crypt and library card's krcg ``id``.
+
+    Crypt cards have a distinct id per grouping, so the variant whose ``grouping``
+    matches the card is used (falling back to the first variant). Library ids come
+    from a direct krcg lookup. The id is appended to each card dict, so it renders
+    last in the YAML output; cards krcg cannot identify are left without an id.
+
+    Mutates *deck* in place. Returns ``True`` if any id was added or changed (so the
+    caller re-serializes), or ``False`` when nothing changed or krcg is unavailable.
+    """
+    if not is_krcg_loaded():
+        return False
+
+    def _set_id(card: dict[str, Any], new_id: int | None) -> bool:
+        if new_id is None or card.get("id") == new_id:
+            return False
+        card["id"] = new_id
+        return True
+
+    changed = False
+    for card in _iter_crypt_cards(deck):
+        variants = get_all_vamp_variants(str(card.get("name") or ""))
+        if not variants:
+            continue
+        grouping = card.get("grouping")
+        match = next((v for v in variants if v.get("grouping") == grouping), variants[0])
+        changed |= _set_id(card, match.get("id"))
+    for card in _iter_library_cards(deck):
+        found = krcg_card_search(str(card.get("name") or ""))
+        changed |= _set_id(card, found.id if found else None)
+    return changed
 
 
 def unresolved_card_errors(deck: Deck_Dict) -> list[str]:

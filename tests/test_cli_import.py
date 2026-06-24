@@ -56,6 +56,7 @@ def _patch_pipeline_externals(winner: str = "Pedro Millán Monje", errors: list[
         patch("channel_ten.cli.scrape.fetch_player", return_value=None),
         patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]),
         patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]),
+        patch("channel_ten.cli.scrape.add_card_ids", return_value=False),
         patch("channel_ten.cli.scrape.error_types", return_value=errors or []),
     ):
         yield

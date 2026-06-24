@@ -186,6 +186,7 @@ deck:
       capacity: 4
       disciplines: PRO ani
       clan_set: Gangrel:6
+      id: 200137
   library_count: 89
   library_sections:
     - name: Master
@@ -194,6 +195,7 @@ deck:
         - count: 1
           name: Anarch Free Press, The
           comment: does not provide a free press!
+          id: 100029
 ```
 
 ## Project structure

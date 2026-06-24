@@ -23,6 +23,7 @@ class Library_Card_Dict(TypedDict, total=False):
     count: Required[int]
     name: str
     comment: str | None
+    id: int
 
 
 class Library_Section_Dict(TypedDict, total=False):
@@ -41,6 +42,7 @@ class Crypt_Card_Dict(TypedDict, total=False):
     grouping: int | str
     path: str | None
     comment: str | None
+    id: int
 
 
 class Deck_Dict(TypedDict, total=False):
@@ -83,12 +85,14 @@ class CryptCard(BaseModel):
     # V5 Sabbat path (Caine, Cathari, Death and the Soul, Power and the Inner Voice)
     path: str | None = None
     comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
+    id: int | None = None
 
 
 class LibraryCard(BaseModel):
     count: int
     name: str
     comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
+    id: int | None = None
 
 
 class LibrarySection(BaseModel):

@@ -15,6 +15,7 @@ from channel_ten.models import (
 )
 from channel_ten.validator import (
     _pick_best_crypt_version,  # pyright: ignore[reportPrivateUsage]
+    add_card_ids,
     canonicalize_card_names,
     enrich_crypt_cards,
     error_types,
@@ -873,6 +874,75 @@ class TestCanonicalizeCardNames:
             and "name" in deck["crypt"][0]
             and deck["crypt"][0]["name"] == "Nathan Turner"
         )
+
+
+# ---------------------------------------------------------------------------
+# add_card_ids
+# ---------------------------------------------------------------------------
+
+
+class TestAddCardIds:
+    def _library_card(self, card_id: int):
+        from unittest.mock import MagicMock
+
+        found = MagicMock()
+        found.id = card_id
+        return found
+
+    def test_sets_crypt_and_library_ids(self):
+        deck = _deck()
+        crypt_variants = {"Nathan Turner": [{"grouping": 6, "id": 200001}]}
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch(
+                "channel_ten.validator.get_all_vamp_variants",
+                side_effect=lambda name: crypt_variants.get(name, []),
+            ),
+            patch(
+                "channel_ten.validator.krcg_card_search",
+                side_effect=lambda name: self._library_card(100001) if name == "Blood Doll" else None,
+            ),
+        ):
+            changed = add_card_ids(deck)
+
+        assert changed is True
+        assert deck["crypt"][0]["id"] == 200001
+        assert deck["library_sections"][0]["cards"][0]["id"] == 100001
+
+    def test_crypt_id_picked_by_grouping(self):
+        deck = _deck()
+        deck["crypt"][0]["grouping"] = 6
+        variants = [{"grouping": 5, "id": 200005}, {"grouping": 6, "id": 200006}]
+
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch("channel_ten.validator.get_all_vamp_variants", return_value=variants),
+            patch("channel_ten.validator.krcg_card_search", return_value=None),
+        ):
+            add_card_ids(deck)
+
+        assert deck["crypt"][0]["id"] == 200006
+
+    def test_no_op_when_krcg_unavailable(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            changed = add_card_ids(deck)
+        assert changed is False
+        assert "id" not in deck["crypt"][0]
+        assert "id" not in deck["library_sections"][0]["cards"][0]
+
+    def test_unknown_cards_left_without_id(self):
+        deck = _deck()
+        with (
+            patch("channel_ten.validator.is_krcg_loaded", return_value=True),
+            patch("channel_ten.validator.get_all_vamp_variants", return_value=[]),
+            patch("channel_ten.validator.krcg_card_search", return_value=None),
+        ):
+            changed = add_card_ids(deck)
+        assert changed is False
+        assert "id" not in deck["crypt"][0]
+        assert "id" not in deck["library_sections"][0]["cards"][0]
 
 
 # ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ from channel_ten.scraper._forum import extract_twd_from_thread
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
 from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
 from channel_ten.validator import (
+    add_card_ids,
     canonicalize_card_names,
     enrich_crypt_cards,
     error_types,
@@ -204,6 +205,7 @@ def run(args: argparse.Namespace) -> int:
                 name_fixes = canonicalize_card_names(deck)
                 crypt_fixes = enrich_crypt_cards(deck)
                 section_fixes = fix_card_sections(deck)
+                ids_changed = add_card_ids(deck)
                 if name_fixes:
                     console.print(
                         f"[cyan]⚙[/cyan] {path.name}  names canonicalized:\n"
@@ -219,6 +221,8 @@ def run(args: argparse.Namespace) -> int:
                     console.print(
                         f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n" + "\n".join(section_fixes)
                     )
+                    dirty = True
+                if ids_changed:
                     dirty = True
                 if dirty:
                     data["deck"] = deck  # type: ignore[assignment]

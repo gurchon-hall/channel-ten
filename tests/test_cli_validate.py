@@ -118,6 +118,7 @@ def _patch_validate(**overrides: Any):
         "canonicalize_card_names": [],
         "enrich_crypt_cards": [],
         "fix_card_sections": [],
+        "add_card_ids": False,
         "error_types": [],
     }
     defaults.update(overrides)

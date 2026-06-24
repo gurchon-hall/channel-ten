@@ -20,6 +20,9 @@ formal tagged version.
 
 Added
 -----
+- Crypt and library cards now carry their krcg ``id`` in the YAML output,
+  resolved during krcg enrichment (crypt ids are group-specific). Cards krcg
+  cannot identify are left without an id.
 - Vampire path support for crypt cards, including enrichment and text output.
 - Configurable minimum-player threshold via the ``MIN_PLAYERS`` environment
   variable for validation checks.

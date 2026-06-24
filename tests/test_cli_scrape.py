@@ -54,6 +54,7 @@ def _patch_pipeline(**overrides: Any):
         "fetch_player": None,
         "enrich_crypt_cards": [],
         "fix_card_sections": [],
+        "add_card_ids": False,
         "error_types": [],
     }
     patches.update(overrides)
@@ -415,26 +416,39 @@ class TestScrapeInternalPaths:
 
     def test_enrich_with_krcg_prints_crypt_fixes(self):
         t = make_tournament()
-        with patch(
-            "channel_ten.cli.scrape.enrich_crypt_cards",
-            return_value=["capacity: 0 → 4"],
+        with (
+            patch(
+                "channel_ten.cli.scrape.enrich_crypt_cards",
+                return_value=["capacity: 0 → 4"],
+            ),
+            patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]),
+            patch("channel_ten.cli.scrape.add_card_ids", return_value=False),
         ):
-            with patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]):
-                result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
-                    t
-                )
+            result = scrape_cmd._enrich_with_krcg(t)  # pyright: ignore[reportPrivateUsage]
         assert result is not t  # model was rebuilt
 
     def test_enrich_with_krcg_prints_section_fixes(self):
         t = make_tournament()
-        with patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]):
-            with patch(
+        with (
+            patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]),
+            patch(
                 "channel_ten.cli.scrape.fix_card_sections",
                 return_value=["Blood Doll → Master"],
-            ):
-                result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
-                    t
-                )
+            ),
+            patch("channel_ten.cli.scrape.add_card_ids", return_value=False),
+        ):
+            result = scrape_cmd._enrich_with_krcg(t)  # pyright: ignore[reportPrivateUsage]
+        assert result is not t
+
+    def test_enrich_with_krcg_rebuilds_when_only_ids_change(self):
+        """Even with no crypt/section fixes, adding ids must rebuild the model."""
+        t = make_tournament()
+        with (
+            patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]),
+            patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]),
+            patch("channel_ten.cli.scrape.add_card_ids", return_value=True),
+        ):
+            result = scrape_cmd._enrich_with_krcg(t)  # pyright: ignore[reportPrivateUsage]
         assert result is not t
 
     def test_lookup_player_coerces_winner_name(self):

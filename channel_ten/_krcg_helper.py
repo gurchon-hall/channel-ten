@@ -238,6 +238,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
                     continue
             _path = getattr(card_from_id, "path", None)
             entry: Crypt_Card_Dict = {
+                "id": card_from_id.id,
                 "capacity": card_from_id.capacity,
                 "disciplines": disciplines,
                 "title": card_from_id.title or None,

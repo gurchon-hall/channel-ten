@@ -287,6 +287,18 @@ class TestGetAllVampVariants:
         # Non-path vampire: path key present but None.
         assert "path" in entry and entry["path"] is None
 
+    def test_includes_card_id(self):
+        mock_card = _make_crypt_card(card_id=20013)
+        mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=mock_card)
+        mock_vtes.VTES.get.return_value = mock_card
+        kh._krcg_loaded = True
+        kh._seen_cards.add(20013)
+        kh._cards_loaded[20013] = mock_card
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            result = kh.get_all_vamp_variants("Nathan Turner")
+        assert len(result) == 1
+        assert "id" in result[0] and result[0]["id"] == 20013
+
     def test_returns_path_when_present(self):
         mock_card = _make_crypt_card(path="Power and the Inner Voice")
         mock_krcg, mock_vtes = _make_krcg_mock(get_return_value=mock_card)
