@@ -143,6 +143,50 @@ class TestEnsureI18nLoaded:
             kh._ensure_i18n_loaded()  # second call must be a no-op
         mock_vtes.VTES.load_from_vekn.assert_called_once()
 
+    def test_calls_load_from_vekn_when_path_data_missing(self):
+        """load_from_vekn is called when i18n is present in static data but path data is not."""
+        kh._krcg_loaded = True
+        mock_krcg, mock_vtes = _make_krcg_mock()
+
+        i18n_card = MagicMock()  # i18n probe resolves → has_i18n = True
+        path_card = MagicMock()
+        path_card.path = None  # path probe resolves but path value is absent
+
+        def _get(name: str, default: Any = None) -> Any:
+            if name == kh._I18N_PROBE_NAME:
+                return i18n_card
+            if name == kh._PATH_PROBE_NAME:
+                return path_card
+            return default
+
+        mock_vtes.VTES.get.side_effect = _get
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+        mock_vtes.VTES.load_from_vekn.assert_called_once()
+        assert kh._i18n_ensured is True
+
+    def test_skips_load_from_vekn_when_both_i18n_and_path_present(self):
+        """load_from_vekn is skipped when both i18n and path data are in static data."""
+        kh._krcg_loaded = True
+        mock_krcg, mock_vtes = _make_krcg_mock()
+
+        i18n_card = MagicMock()
+        path_card = MagicMock()
+        path_card.path = "Power and the Inner Voice"
+
+        def _get(name: str, default: Any = None) -> Any:
+            if name == kh._I18N_PROBE_NAME:
+                return i18n_card
+            if name == kh._PATH_PROBE_NAME:
+                return path_card
+            return default
+
+        mock_vtes.VTES.get.side_effect = _get
+        with patch.dict(sys.modules, {"krcg": mock_krcg}):
+            kh._ensure_i18n_loaded()
+        mock_vtes.VTES.load_from_vekn.assert_not_called()
+        assert kh._i18n_ensured is True
+
 
 # ---------------------------------------------------------------------------
 # is_krcg_loaded
@@ -252,9 +296,21 @@ class TestKrcgCardSearch:
 class TestGetAllVampVariants:
     def setup_method(self):
         _reset_state()
+        # Unit tests supply explicit mock card data; skip live-data loading so
+        # _ensure_i18n_loaded() is a no-op and never touches the real krcg module.
+        kh._i18n_ensured = True
 
     def teardown_method(self):
         _reset_state()
+
+    def test_calls_ensure_i18n_before_lookup(self):
+        """get_all_vamp_variants calls _ensure_i18n_loaded() so path data is loaded."""
+        kh._krcg_loaded = True
+        kh._i18n_ensured = False  # reset so the call is observable
+        with patch.object(kh, "_ensure_i18n_loaded") as mock_ensure:
+            with patch.object(kh, "krcg_card_search", return_value=None):
+                kh.get_all_vamp_variants("Some Vampire")
+        mock_ensure.assert_called_once()
 
     def test_returns_empty_when_krcg_not_loaded(self):
         kh._krcg_loaded = False

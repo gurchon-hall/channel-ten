@@ -36,6 +36,11 @@ def _strip_group_suffix(name: str) -> str:
 # are present in the loaded krcg data ("Dreams of the Sphinx").
 _I18N_PROBE_NAME = "Sueños de la Esfinge"
 
+# A known V5 Sabbat vampire used to probe whether path data is present in the
+# loaded krcg data.  krcg 4.19 added the ``path`` attribute but path *values*
+# are only populated in the live vekn.net data, not in the static bundle.
+_PATH_PROBE_NAME = "Aaradhya, The Callous Tyrant"
+
 
 def is_krcg_loaded() -> bool:
     """Check if the KRCG module is available."""
@@ -79,15 +84,21 @@ def krcg_card_search(card_name_or_id: str | int) -> Any:
 
 
 def _ensure_i18n_loaded() -> None:
-    """Best-effort: ensure translated card-name aliases are available.
+    """Best-effort: ensure translated card-name aliases AND path data are available.
 
     krcg registers every translated card name (es-ES, fr-FR, …) as an alias, so a
     plain lookup resolves a localized name to its English card. The KRCG static
     data loaded by ``VTES.load()`` includes translations for krcg>=4.0; if it does
     not (older builds), fall back to ``load_from_vekn()`` which always loads them.
 
-    Failures are swallowed — English-only resolution still works and any name that
-    stays unresolved is flagged for manual review downstream. Runs at most once.
+    krcg 4.19 added the ``path`` attribute for V5 Sabbat paths, but path *values*
+    are only populated in the live vekn.net data, not in the static bundle.  We
+    probe a known path vampire (``_PATH_PROBE_NAME``) and also trigger
+    ``load_from_vekn()`` when its path is absent from the static data.
+
+    Failures are swallowed — English-only / path-less resolution still works and
+    any name / missing path that stays unresolved is flagged downstream. Runs at
+    most once.
     """
     global _i18n_ensured
     if _i18n_ensured or not is_krcg_loaded():
@@ -96,16 +107,20 @@ def _ensure_i18n_loaded() -> None:
 
     from krcg import vtes as _kv  # noqa: PLC0415
 
-    if _kv.VTES.get(_I18N_PROBE_NAME, None):
-        return  # translations already present in the static data
+    has_i18n = bool(_kv.VTES.get(_I18N_PROBE_NAME, None))
+    probe_card = _kv.VTES.get(_PATH_PROBE_NAME, None)
+    has_path_data = bool(probe_card and getattr(probe_card, "path", None))
+
+    if has_i18n and has_path_data:
+        return  # both i18n aliases and path values are present in the static data
 
     try:
         _kv.VTES.load_from_vekn()
-        # Re-querying is required: cached misses from the English-only data are stale.
+        # Re-querying is required: cached results from the static data are stale.
         _seen_cards.clear()
         _cards_loaded.clear()
     except Exception as exc:
-        _logger.debug("Could not load krcg i18n data from vekn.net: %s", exc)
+        _logger.debug("Could not load krcg live data from vekn.net: %s", exc)
 
 
 def canonicalize_card_name(name: str) -> str:
@@ -196,6 +211,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
     - ``path``        - V5 Sabbat path string or ``None`` (requires a krcg build
       that exposes ``Card.path``; degrades to ``None`` otherwise)
     """
+    _ensure_i18n_loaded()  # guarantees path values are loaded
     card = krcg_card_search(vamp_name)
     if not card or not card.crypt:
         return []

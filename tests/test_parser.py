@@ -195,6 +195,16 @@ class TestCryptParsing:
         assert nathan.clan == "Gangrel"
         assert nathan.grouping == 6
 
+    def test_path_not_parsed_from_text(self):
+        # Crypt line format currently does not support explicit path tokens.
+        example = EXAMPLE_COMPACT_CRYPT.replace(
+            "2x Nathan Turner 4 PRO ani Gangrel:6",
+            "2x Nathan Turner 4 PRO ani Gangrel:6 Power and the Inner Voice",
+        )
+        t = parse_twd_text(example)
+        assert t.deck
+        assert t.deck.crypt[0].path is None
+
 
 # ---------------------------------------------------------------------------
 # Crypt fallback parsing (compact single-space format)
