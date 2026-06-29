@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", nargs="?", default=DEFAULT_URL, help="Forum thread URL to scrape.")
-    parser.add_argument(
-        "--output-dir", "-o", type=Path, default=Path("twds"), dest="output_dir"
-    )
+    parser.add_argument("--output-dir", "-o", type=Path, default=Path("twds"), dest="output_dir")
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY_SECONDS)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--verbose", "-v", action="store_true")
