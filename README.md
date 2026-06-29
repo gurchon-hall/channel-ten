@@ -23,10 +23,7 @@ The forum is not the complete record: some TWDs only ever made it into the Giott
 ```bash
 git clone https://github.com/gurchon-hall/channel-ten.git
 cd channel-ten
-python3 -m venv .venv
-source .venv/bin/activate      # Unix / macOS
-& .\.venv\Scripts\Activate.ps1 # Windows PowerShell
-pip install -e ".[dev]"
+uv sync --group dev
 pre-commit install              # register git hooks (ruff, pytest, CLI smoke tests)
 ```
 
@@ -183,9 +180,11 @@ deck:
   crypt:
     - count: 2
       name: Nathan Turner
+      id: 200848
       capacity: 4
       disciplines: PRO ani
-      clan_set: Gangrel:6
+      clan: Gangrel
+      grouping: 6
   library_count: 89
   library_sections:
     - name: Master
@@ -193,6 +192,7 @@ deck:
       cards:
         - count: 1
           name: Anarch Free Press, The
+          id: 100038
           comment: does not provide a free press!
 ```
 
@@ -226,9 +226,12 @@ channel_ten/
 │   ├── _icons.py          # Topic icon detection
 │   ├── _twda.py           # GiottoVerducci/TWD archive listing and fetching
 │   └── _vekn.py           # VEKN event calendar and player registry lookups
-├── models.py              # Pydantic data models
+├── _krcg_helper.py        # krcg card-database wrappers (lookup, enrichment, canonicalization)
+├── models.py              # Pydantic data models (Card, CryptCard, LibraryCard, Deck, Tournament)
 ├── publisher.py           # GitHub PR publisher
 └── validator.py           # YAML validation logic
+scripts/
+└── migrate_card_names.py  # One-time migration: rename cards and backfill IDs in eternal-vigilance
 tests/
 ├── conftest.py            # Shared test factories (make_tournament, etc.)
 ├── test_cli_common.py
@@ -267,6 +270,7 @@ pyproject.toml
 - Content validation routes tournaments with errors to `twds/errors/<error_type>/` automatically.
 - Forum posts marked with the "merged" icon are written to `twds/changes_required/` instead of the normal date tree, so they can be reviewed before merging.
 - `validate` (fast mode) re-validates only the 25 most recent files that are neither stored in errors nor changes required; `--full-validation` rescrapes every published file.
+- To permanently protect a manually edited file from being overwritten by `validate`, add its event ID to `skip_events.txt` at the root of the eternal-vigilance checkout (one ID per line, `#` for comments). The file is optional; absent means no events are skipped.
 - `publish --dry-run` commits all files to a temporary branch to verify behaviour, then deletes the branch without opening a PR. A dry-run report is saved to `publish/YYYY/MM/dry-run-{date}-{HH-MM-SS}.md`.
 - The `User-Agent` header identifies the bot to the server.
 - Always verify `robots.txt` and VEKN forum terms before large-scale scraping.

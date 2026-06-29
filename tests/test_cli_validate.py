@@ -7,6 +7,7 @@ Two groups of concerns:
 
 import argparse
 import contextlib
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ import channel_ten.cli.validate as validate_mod
 from channel_ten.cli.validate import (
     _check_and_update_winner,  # pyright: ignore[reportPrivateUsage]
     _iter_published_yaml,  # pyright: ignore[reportPrivateUsage]
+    _load_skip_event_ids,  # pyright: ignore[reportPrivateUsage]
 )
 
 # ---------------------------------------------------------------------------
@@ -163,6 +165,53 @@ class TestIterPublishedYaml:
 
     def test_empty_dir_yields_nothing(self, tmp_path: Path, full_validation: bool):
         assert list(_iter_published_yaml(tmp_path, full_validation)) == []
+
+    def test_skips_event_id_in_skip_set(self, tmp_path: Path, full_validation: bool):
+        f = tmp_path / "2023" / "03" / "9999.yaml"
+        _write_yaml(f, {})
+        result = list(_iter_published_yaml(tmp_path, full_validation, frozenset({9999})))
+        assert f not in result
+
+    def test_yields_event_id_not_in_skip_set(self, tmp_path: Path, full_validation: bool):
+        f = tmp_path / "2023" / "03" / "9999.yaml"
+        _write_yaml(f, {})
+        result = list(_iter_published_yaml(tmp_path, full_validation, frozenset({1111})))
+        assert f in result
+
+
+# ---------------------------------------------------------------------------
+# _load_skip_event_ids
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSkipEventIds:
+    def test_returns_empty_when_file_absent(self, tmp_path: Path):
+        twds_dir = tmp_path / "twds"
+        twds_dir.mkdir()
+        assert _load_skip_event_ids(twds_dir) == frozenset()
+
+    def test_parses_event_ids(self, tmp_path: Path):
+        twds_dir = tmp_path / "twds"
+        twds_dir.mkdir()
+        (tmp_path / "skip_events.txt").write_text("1234\n5678\n", encoding="utf-8")
+        assert _load_skip_event_ids(twds_dir) == frozenset({1234, 5678})
+
+    def test_ignores_comments_and_blank_lines(self, tmp_path: Path):
+        twds_dir = tmp_path / "twds"
+        twds_dir.mkdir()
+        (tmp_path / "skip_events.txt").write_text(
+            "# this is a comment\n\n1234\n", encoding="utf-8"
+        )
+        assert _load_skip_event_ids(twds_dir) == frozenset({1234})
+
+    def test_warns_on_non_integer_line(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        twds_dir = tmp_path / "twds"
+        twds_dir.mkdir()
+        (tmp_path / "skip_events.txt").write_text("1234\nnot-an-id\n", encoding="utf-8")
+        with caplog.at_level(logging.WARNING):
+            result = _load_skip_event_ids(twds_dir)
+        assert result == frozenset({1234})
+        assert "not-an-id" in caplog.text
 
 
 # ---------------------------------------------------------------------------

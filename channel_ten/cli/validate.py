@@ -51,6 +51,11 @@ logger = logging.getLogger(__name__)
 SKIP_DIRS = {"changes_required"}
 _FAST_VALIDATION_YAML_FILES_NUMBER_THRESHOLD = 25
 
+# Name of the opt-out file placed at the root of the eternal-vigilance checkout
+# (sibling of the twds/ directory).  One event ID per line; lines starting with
+# '#' are treated as comments and ignored.
+SKIP_EVENTS_FILENAME = "skip_events.txt"
+
 _TOURNAMENT_FIELD_ORDER = list(Tournament.model_fields.keys())
 
 
@@ -90,11 +95,42 @@ def register(sub: SubParsersAction) -> None:
     p.set_defaults(func=run)
 
 
-def _iter_published_yaml(twds_dir: Path, full_validation: bool) -> Iterator[Path]:
-    """Yield all YAML files that are NOT inside changes_required/."""
+def _load_skip_event_ids(twds_dir: Path) -> frozenset[int]:
+    """Return the set of event IDs listed in skip_events.txt next to twds_dir.
+
+    The file is optional; an absent file returns an empty set.  Each non-blank,
+    non-comment line must contain a single integer event ID.  Lines starting
+    with '#' are ignored.
+    """
+    skip_file = twds_dir.parent / SKIP_EVENTS_FILENAME
+    if not skip_file.exists():
+        return frozenset()
+    ids: set[int] = set()
+    for raw_line in skip_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            ids.add(int(line))
+        except ValueError:
+            logger.warning("skip_events.txt: ignoring non-integer line %r", line)
+    return frozenset(ids)
+
+
+def _iter_published_yaml(
+    twds_dir: Path, full_validation: bool, skip_event_ids: frozenset[int] = frozenset()
+) -> Iterator[Path]:
+    """Yield all YAML files that are NOT inside changes_required/ or in skip_event_ids."""
     for yaml_file in _filter_yaml_paths(twds_dir, full_validation):
         parts = yaml_file.relative_to(twds_dir).parts
         if parts and parts[0] in SKIP_DIRS:
+            continue
+        try:
+            event_id = int(yaml_file.stem)
+        except ValueError:
+            event_id = -1
+        if event_id in skip_event_ids:
+            logger.debug("skipping %s (listed in %s)", yaml_file.name, SKIP_EVENTS_FILENAME)
             continue
         yield yaml_file
 
@@ -157,9 +193,12 @@ def run(args: argparse.Namespace) -> int:
 
     moved: list[Path] = []
     updated: list[Path] = []
+    skip_event_ids = _load_skip_event_ids(twds_dir)
+    if skip_event_ids:
+        logger.info("Skipping %d event(s) listed in %s.", len(skip_event_ids), SKIP_EVENTS_FILENAME)
 
     with httpx.Client(headers=HEADERS, follow_redirects=True, timeout=60.0) as client:
-        for path in _iter_published_yaml(twds_dir, full_validation):
+        for path in _iter_published_yaml(twds_dir, full_validation, skip_event_ids):
             with open(path, encoding="utf-8") as fh:
                 raw = yaml.load(fh)  # pyright: ignore[reportUnknownMemberType]
 

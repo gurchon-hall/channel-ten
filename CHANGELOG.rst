@@ -15,11 +15,10 @@ starting from v0.1.0.
 Unreleased
 ==========
 
-Card ID support: every crypt and library card now stores the krcg numeric ID in
-YAML output; missing IDs after enrichment surface as a new ``missing_card_id``
-validation error. First implemented by [@Zavierazo](https://github.com/Zavierazo).
-Refactored because of version gap getting wider since PR
-[#14](https://github.com/gurchon-hall/channel-ten/pull/14) submission
+Card ID support, event exclusion from validation, and a one-time card-rename
+migration script.  Card ID feature first implemented by
+`@Zavierazo <https://github.com/Zavierazo>`_; refactored here due to the
+growing version gap since `PR #14 <https://github.com/gurchon-hall/channel-ten/pull/14>`_.
 
 Added
 -----
@@ -43,6 +42,13 @@ Added
   decks, and writes YAML back in-place.  Includes
   ``"Mind Rape" → "Puppet Master"`` as the first entry.  Extend the dict
   manually as future VTES card renames are announced.
+- **Event exclusion from validation**: the ``validate`` command now reads an
+  optional ``skip_events.txt`` file at the root of the eternal-vigilance
+  checkout (sibling of ``twds/``).  Any event ID listed there is silently
+  skipped — no rescraping, no re-enrichment, no overwrite.  Intended for
+  tournament posts that mix the TWD with contestants' decks and require a
+  permanent manual edit.  File format: one integer event ID per line; lines
+  starting with ``#`` are comments.
 
 Changed
 -------
