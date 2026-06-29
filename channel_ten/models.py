@@ -23,7 +23,7 @@ class Library_Card_Dict(TypedDict, total=False):
     count: Required[int]
     name: str
     comment: str | None
-    id: int
+    id: int | None
 
 
 class Library_Section_Dict(TypedDict, total=False):
@@ -42,7 +42,7 @@ class Crypt_Card_Dict(TypedDict, total=False):
     grouping: int | str
     path: str | None
     comment: str | None
-    id: int
+    id: int | None
 
 
 class Deck_Dict(TypedDict, total=False):
