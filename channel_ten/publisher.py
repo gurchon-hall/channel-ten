@@ -25,7 +25,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import httpx
 from dotenv import load_dotenv
@@ -285,6 +285,42 @@ def sanitize_branch_name(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def post_twda_issue(
+    client: httpx.Client,
+    failures: list[tuple[int, str]],
+    token: str | None = None,
+) -> str:
+    """Open a GitHub issue on GiottoVerducci/TWD listing import failures.
+
+    Each entry in *failures* is ``(event_id, reason)``.  Returns the URL of
+    the created issue.  Raises ``httpx.HTTPStatusError`` on API errors and
+    ``ValueError`` when no token is available.
+    """
+    today = date.today().isoformat()
+    file_base = f"https://github.com/{_TARGET_OWNER}/{_TARGET_REPO}/blob/{_TARGET_BRANCH}/{_DECKS_FOLDER}"
+    rows = "\n".join(
+        f"| [{eid}]({file_base}/{eid}.txt) | `{reason}` |"
+        for eid, reason in failures
+    )
+    body = (
+        f"The following events from the archive could not be imported by "
+        f"[channel-ten](https://github.com/gurchon-hall/channel-ten) on {today}:\n\n"
+        f"| Event | Reason |\n"
+        f"|-------|--------|\n"
+        f"{rows}\n"
+    )
+    url = f"{_GITHUB_API}/repos/{_TARGET_OWNER}/{_TARGET_REPO}/issues"
+    resp = client.post(
+        url,
+        headers=_headers(token),
+        json={"title": f"Import failures — {today}", "body": body},
+    )
+    resp.raise_for_status()
+    issue_url: str = resp.json()["html_url"]
+    logger.info("Issue created: %s", issue_url)
+    return issue_url
 
 
 def publish_all_as_single_pr(

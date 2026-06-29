@@ -25,7 +25,7 @@ from channel_ten._logger import setup_logging
 from channel_ten.cli._common import SubParsersAction
 from channel_ten.models import Tournament
 from channel_ten.output import write_tournament_yaml
-from channel_ten.output.yaml import tournament_to_yaml_str
+from channel_ten.output.yaml import find_existing_yaml, tournament_to_yaml_str
 from channel_ten.scraper import (
     DEFAULT_DELAY_SECONDS,
     HEADERS,
@@ -34,6 +34,7 @@ from channel_ten.scraper import (
     fetch_event_name,
     fetch_event_winner,
     fetch_player,
+    is_twda_import,
     scrape_forum,
 )
 from channel_ten.validator import (
@@ -398,6 +399,14 @@ def run(args: argparse.Namespace) -> int:
         ):
             if not tournament.event_id:
                 logger.warning("%r  (no event_id — skipped)", tournament.name)
+                counters.skipped += 1
+                continue
+
+            # TWDA-imported events must never be overwritten by the forum scraper —
+            # the archive is the authoritative source; use `import` to refresh them.
+            existing = find_existing_yaml(args.output_dir, tournament.yaml_filename)
+            if existing is not None and is_twda_import(existing):
+                logger.debug("%s  (TWDA import — skipped by scrape)", tournament.event_id)
                 counters.skipped += 1
                 continue
 

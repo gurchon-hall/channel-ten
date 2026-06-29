@@ -19,8 +19,11 @@ GitHub access:
 import logging
 import re
 import time
+from pathlib import Path
+from typing import Any, cast
 
 import httpx
+from ruamel.yaml import YAML
 
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS
 
@@ -81,6 +84,12 @@ def list_twda_event_ids(
     logger.debug("GET %s (recursive)", url)
     resp = client.get(url, headers=_twda_headers(token), params={"recursive": "1"})
 
+    if resp.status_code == 401:
+        raise RuntimeError(
+            "GitHub API returned 401 Unauthorized while listing GiottoVerducci/TWD. "
+            "Your GITHUB_TOKEN may be expired or invalid — unset it or pass a valid "
+            "token via --github-token."
+        )
     if resp.status_code == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
         raise RuntimeError(
             "GitHub API rate limit exceeded while listing GiottoVerducci/TWD. "
@@ -128,3 +137,22 @@ def fetch_twda_txt(
     resp.raise_for_status()
     time.sleep(delay)
     return resp.text
+
+
+def is_twda_import(path: Path) -> bool:
+    """Return True if the YAML file at *path* was imported from GiottoVerducci/TWD.
+
+    TWDA-imported events have no forum thread: their ``forum_post_url`` is set
+    to the VEKN event-calendar URL as a fallback.  Forum-scraped events always
+    carry a forum thread URL in that field instead.
+    """
+    _yaml = YAML()
+    try:
+        raw = _yaml.load(path.read_text(encoding="utf-8"))  # pyright: ignore[reportUnknownMemberType]
+    except Exception:
+        return False
+    if not isinstance(raw, dict):
+        return False
+    data: dict[str, Any] = cast(dict[str, Any], raw)
+    url: str = data.get("forum_post_url") or ""
+    return "/event-calendar/" in url

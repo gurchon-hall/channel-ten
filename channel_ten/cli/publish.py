@@ -169,10 +169,16 @@ def run(args: argparse.Namespace) -> int:
                 path.read_text(encoding="utf-8")
             )
             t = Tournament.model_validate(data)
-            tournaments.append(t)
-            logger.debug("Loaded %s: %s (%s)", t.event_id, t.name, t.location)
         except Exception as exc:
             logger.warning("Skipping %s — could not load: %s", path, exc)
+            continue
+        # TWDA-imported events have forum_post_url == event_url (event-calendar).
+        # They originate from GiottoVerducci/TWD and must not be pushed back there.
+        if t.forum_post_url and "/event-calendar/" in t.forum_post_url:
+            logger.debug("Skipping %s (TWDA import — already in source repo)", t.event_id)
+            continue
+        tournaments.append(t)
+        logger.debug("Loaded %s: %s (%s)", t.event_id, t.name, t.location)
 
     logger.info("Loaded %d tournament(s) from %s.", len(tournaments), twds_dir)
 

@@ -28,6 +28,7 @@ from channel_ten.cli._common import SubParsersAction
 from channel_ten.cli.scrape import RouteCounters, process_tournament, route_tournament
 from channel_ten.output.yaml import find_existing_yaml
 from channel_ten.parser import parse_twd_text
+from channel_ten.publisher import post_twda_issue
 from channel_ten.scraper import (
     DEFAULT_DELAY_SECONDS,
     HEADERS,
@@ -68,7 +69,7 @@ def register(sub: SubParsersAction) -> None:
     p.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite existing YAML files.",
+        help="Re-fetch and reimport decks already in the base, overwriting their files.",
     )
     p.add_argument(
         "--github-token",
@@ -84,6 +85,17 @@ def register(sub: SubParsersAction) -> None:
         type=int,
         default=None,
         help="Import at most N new decks (useful for testing).",
+    )
+    p.add_argument(
+        "--create-issue",
+        action="store_true",
+        default=False,
+        dest="create_issue",
+        help=(
+            "After the run, open a GitHub issue on GiottoVerducci/TWD listing every "
+            "event that could not be imported and why. Requires a GitHub token with "
+            "public_repo scope (--github-token or $GITHUB_TOKEN)."
+        ),
     )
     p.add_argument("--verbose", "-v", action="store_true")
     p.set_defaults(func=run)
@@ -101,6 +113,7 @@ def run(args: argparse.Namespace) -> int:
     token = args.github_token or os.environ.get("GITHUB_TOKEN") or None
     output_dir: Path = args.output_dir
     counters = RouteCounters()
+    failures: list[tuple[int, str]] = []
 
     with httpx.Client(headers=HEADERS, timeout=60.0) as client:
         # Step 1: list every deck id in the archive
@@ -113,17 +126,31 @@ def run(args: argparse.Namespace) -> int:
             logger.error("could not list GiottoVerducci/TWD: %s", exc)
             return 1
 
-        # Step 2: keep only ids not already present anywhere in the base
-        new_ids = [
-            event_id
-            for event_id in all_ids
-            if find_existing_yaml(output_dir, f"{event_id}.yaml") is None
-        ]
-        logger.info(
-            "%d deck(s) in GiottoVerducci/TWD, %d not in base.",
-            len(all_ids),
-            len(new_ids),
-        )
+        # Step 2: keep only ids not already present anywhere in the base,
+        # unless --overwrite is set (in which case all ids are candidates).
+        if args.overwrite:
+            new_ids = list(all_ids)
+            existing_count = sum(
+                1
+                for event_id in all_ids
+                if find_existing_yaml(output_dir, f"{event_id}.yaml") is not None
+            )
+            logger.info(
+                "%d deck(s) in GiottoVerducci/TWD, %d already in base (will reimport).",
+                len(all_ids),
+                existing_count,
+            )
+        else:
+            new_ids = [
+                event_id
+                for event_id in all_ids
+                if find_existing_yaml(output_dir, f"{event_id}.yaml") is None
+            ]
+            logger.info(
+                "%d deck(s) in GiottoVerducci/TWD, %d not in base.",
+                len(all_ids),
+                len(new_ids),
+            )
 
         if args.limit is not None:
             new_ids = new_ids[: args.limit]
@@ -134,6 +161,7 @@ def run(args: argparse.Namespace) -> int:
             raw = fetch_twda_txt(client, event_id, delay=args.delay)
             if raw is None:
                 logger.warning("%s  (not fetchable — skipped)", event_id)
+                failures.append((event_id, "not fetchable"))
                 counters.skipped += 1
                 continue
 
@@ -142,6 +170,7 @@ def run(args: argparse.Namespace) -> int:
             except (ValueError, Exception) as exc:
                 logger.error("%s: parse error: %s", event_id, exc)
                 logger.debug("Stack trace:", exc_info=True)
+                failures.append((event_id, str(exc)))
                 counters.failed += 1
                 continue
 
@@ -178,4 +207,18 @@ def run(args: argparse.Namespace) -> int:
             "(use --overwrite to replace them).",
             counters.overwrite_skipped,
         )
+
+    if args.create_issue and failures:
+        if not token:
+            logger.error(
+                "--create-issue requires a GitHub token (--github-token or $GITHUB_TOKEN)."
+            )
+            return 1
+        try:
+            with httpx.Client(headers=HEADERS, timeout=60.0) as issue_client:
+                post_twda_issue(issue_client, failures, token=token)
+        except Exception as exc:
+            logger.error("Could not create GitHub issue: %s", exc)
+            return 1
+
     return 1 if counters.failed else 0

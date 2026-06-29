@@ -32,6 +32,7 @@ from channel_ten.scraper._twda import (
     TWDA_DECKS_FOLDER,
     TWDA_RAW_BASE,
     fetch_twda_txt,
+    is_twda_import,
     list_twda_event_ids,
 )
 from channel_ten.scraper._vekn import (
@@ -68,5 +69,6 @@ __all__ = [
     "fetch_player",
     # GiottoVerducci/TWD archive
     "fetch_twda_txt",
+    "is_twda_import",
     "list_twda_event_ids",
 ]
