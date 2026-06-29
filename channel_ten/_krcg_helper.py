@@ -236,6 +236,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[CryptCard]:
                 CryptCard(
                     count=0,
                     name=target_printed_name,
+                    id=int(candidate.id),
                     capacity=candidate.capacity,
                     disciplines=disciplines,
                     title=str(candidate.title) if candidate.title else None,

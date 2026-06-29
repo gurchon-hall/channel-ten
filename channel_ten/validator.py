@@ -1,7 +1,8 @@
 """Pure validation logic for VTES TWD YAML files.
-Enrichment functions (enrich_crypt_cards, fix_card_sections,
-canonicalize_card_names, unresolved_card_errors) operate on Pydantic Deck /
-CryptCard / LibrarySection / LibraryCard models and mutate them in-place.
+Enrichment functions (enrich_crypt_cards, enrich_card_ids, fix_card_sections,
+canonicalize_card_names, unresolved_card_errors, missing_card_id_errors) operate
+on Pydantic Deck / CryptCard / LibrarySection / LibraryCard models and mutate
+them in-place.
 
 error_types() accepts a raw dict[str, Any] (as loaded from YAML) so it can
 detect missing or structurally invalid fields before Pydantic validation.
@@ -27,6 +28,9 @@ Player count
 
 Date coherence (requires a calendar_date from the VEKN event calendar)
   incoherent_date : date_start in the file does not match the official date
+
+krcg enrichment (requires krcg to be loaded)
+  missing_card_id : at least one crypt or library card has no krcg id after enrichment
 
 When multiple errors are present the first one (in the order listed above)
 determines the error directory used by the CLI validate command.
@@ -59,6 +63,10 @@ MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "10"))
 
 # Fields copied from krcg into a scraped CryptCard; count and name are
 # preserved from the scraped data and never overwritten.
+# id is excluded intentionally: fields listed here are always overwritten from
+# krcg on every enrichment pass (enabling safe re-enrichment as krcg data
+# evolves). id follows a stricter rule — once attributed it must never be
+# cleared — so it is handled separately with an explicit "set only if None" guard.
 _ENRICH_FIELDS: frozenset[str] = frozenset(
     {
         "capacity",
@@ -149,6 +157,8 @@ def enrich_crypt_cards(deck: Deck) -> list[str]:
                 changed.append(f"{field}: {old_value!r} → {new_value!r}")
         if changed:
             fixes.append(f"  {card.name!r}: " + ", ".join(changed))
+        if card.id is None and best.id is not None:
+            card.id = best.id
 
     return fixes
 
@@ -262,6 +272,46 @@ def canonicalize_card_names(deck: Deck) -> list[str]:
             lib_card.name = new_name
             fixes.append(f"  {old_name!r} → {new_name!r}")
     return fixes
+
+
+def enrich_card_ids(deck: Deck) -> list[str]:
+    """Attribute krcg card IDs to any crypt or library card whose id is still None.
+
+    Runs after enrich_crypt_cards() (which already sets ids for cards it resolves).
+    This function covers library cards and any crypt cards that enrich_crypt_cards()
+    could not match. The id is set only when card.id is None — once attributed an id
+    is never overwritten.
+
+    Mutates *deck* in-place. Returns a list of human-readable descriptions of newly
+    attributed ids (empty when nothing changed or krcg is unavailable).
+    """
+    if not is_krcg_loaded():
+        return []
+
+    attributed: list[str] = []
+    all_cards: list[CryptCard | LibraryCard] = list(deck.crypt) + _iter_library_cards(deck)
+    for card in all_cards:
+        if card.id is not None:
+            continue
+        krcg_card = krcg_card_search(card.name)
+        if krcg_card is not None:
+            card.id = int(krcg_card.id)
+            attributed.append(f"  {card.name!r}: id={card.id}")
+    return attributed
+
+
+def missing_card_id_errors(deck: Deck) -> list[str]:
+    """Return ["missing_card_id"] if any card in *deck* has no krcg id after enrichment.
+
+    Returns an empty list when krcg is unavailable so that offline runs do not
+    produce false positives (same guard pattern as unresolved_card_errors).
+    """
+    if not is_krcg_loaded():
+        return []
+    all_cards: list[CryptCard | LibraryCard] = list(deck.crypt) + _iter_library_cards(deck)
+    if any(c.id is None for c in all_cards):
+        return ["missing_card_id"]
+    return []
 
 
 def unresolved_card_errors(deck: Deck) -> list[str]:

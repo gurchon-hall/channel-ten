@@ -12,6 +12,52 @@ starting from v0.1.0.
 
 ----
 
+Unreleased
+==========
+
+Card ID support: every crypt and library card now stores the krcg numeric ID in
+YAML output; missing IDs after enrichment surface as a new ``missing_card_id``
+validation error. First implemented by [@Zavierazo](https://github.com/Zavierazo).
+Refactored because of version gap getting wider since PR
+[#14](https://github.com/gurchon-hall/channel-ten/pull/14) submission
+
+Added
+-----
+
+- ``Card`` base Pydantic model in ``models.py`` with ``count``, ``name``,
+  ``id``, and ``comment`` fields.  ``CryptCard`` and ``LibraryCard`` now inherit
+  from it, eliminating the duplicated ``comment`` field.
+- ``id: int | None`` field on every card, defaulting to ``None``.  Populated
+  from the krcg database during enrichment; absent from YAML when ``None``
+  (filtered by ``_filter_none``).  Never appears in TXT output.
+- ``enrich_card_ids(deck)`` in ``validator.py``: sets ``id`` for library cards
+  (and any crypt card not already attributed by ``enrich_crypt_cards()``).
+  Skips cards whose ``id`` is already set — once attributed an ID is never
+  overwritten.
+- ``missing_card_id_errors(deck)`` in ``validator.py``: returns
+  ``["missing_card_id"]`` if any crypt or library card still has ``id=None``
+  after enrichment.  Returns ``[]`` when krcg is unavailable (no false positives
+  offline).
+- ``scripts/migrate_card_names.py``: one-time migration script that walks an
+  eternal-vigilance checkout, applies ``OLD_TO_NEW_NAME`` renames, re-enriches
+  decks, and writes YAML back in-place.  Includes
+  ``"Mind Rape" → "Puppet Master"`` as the first entry.  Extend the dict
+  manually as future VTES card renames are announced.
+
+Changed
+-------
+
+- ``enrich_crypt_cards()`` now sets ``card.id`` from the krcg ID of the best
+  grouping version selected, using the same ``if card.id is None`` guard.
+- ``get_all_vamp_variants()`` in ``_krcg_helper.py`` now includes
+  ``id=int(candidate.id)`` in every returned ``CryptCard`` so that the correct
+  grouping-specific ID flows through enrichment.
+- ``_ENRICH_FIELDS`` in ``validator.py`` gains an explanatory comment: ``id`` is
+  excluded because fields in that set are always overwritten on re-enrichment,
+  whereas ``id`` must never be cleared once set.
+
+----
+
 v0.8.0 — 2026-06-29
 ====================
 

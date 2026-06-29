@@ -21,6 +21,7 @@ from channel_ten.models import (
 
 FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
     "Nathan Turner": {
+        "id": 200848,
         "capacity": 4,
         "disciplines": "PRO ani",
         "title": None,
@@ -29,6 +30,7 @@ FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
         "path": None,
     },
     "Antón de Concepción": {
+        "id": 200956,
         "capacity": 8,
         "disciplines": "AUS DOM OBF for",
         "title": "Prince",
@@ -37,6 +39,7 @@ FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
         "path": None,
     },
     "Anarch Convert": {
+        "id": 200077,
         "capacity": 1,
         "disciplines": "",
         "title": None,
@@ -45,6 +48,7 @@ FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
         "path": None,
     },
     "Aaradhya, The Callous Tyrant": {
+        "id": 201390,
         "capacity": 10,
         "disciplines": "ANI DOM FOR POT PRE",
         "title": "Cardinal",
@@ -53,6 +57,7 @@ FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
         "path": "Power and the Inner Voice",
     },
     "Xaviar": {
+        "id": 201400,
         "capacity": 11,
         "disciplines": "ANI CEL FOR PRO",
         "title": "Justicar",
@@ -61,6 +66,7 @@ FAKE_CRYPT_KRCG_BASE: dict[str, dict[str, Any] | list[dict[str, Any]]] = {
         "path": None,
     },
     "Xaviar (ADV)": {
+        "id": 201401,
         "capacity": 10,
         "disciplines": "aus cel pot ABO ANI FOR PRO",
         "title": "Justicar",

@@ -18,9 +18,16 @@ DATE_FORMATS = (
 )
 
 
-class CryptCard(BaseModel):
+class Card(BaseModel):
+    """Base card with the four fields shared by every card kind."""
+
     count: int
     name: str
+    id: int | None = None
+    comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
+
+
+class CryptCard(Card):
     capacity: int
     disciplines: str  # raw string, e.g. "PRO ani cel for"
     title: str | None = None  # e.g. "Primogen" (not always present)
@@ -28,13 +35,10 @@ class CryptCard(BaseModel):
     grouping: int | str  # int for normal groups (1–8); "ANY" for group-independent cards
     # V5 Sabbat path (Caine, Cathari, Death and the Soul, Power and the Inner Voice)
     path: str | None = None
-    comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
 
 
-class LibraryCard(BaseModel):
-    count: int
-    name: str
-    comment: str | None = None  # inline note after a comment delimiter (--, //, –, etc.)
+class LibraryCard(Card):
+    pass
 
 
 class LibrarySection(BaseModel):

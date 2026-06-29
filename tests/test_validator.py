@@ -17,9 +17,11 @@ from channel_ten.models import (
 from channel_ten.validator import (
     _pick_best_crypt_version,  # pyright: ignore[reportPrivateUsage]
     canonicalize_card_names,
+    enrich_card_ids,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
+    missing_card_id_errors,
     parse_date_field,
     unresolved_card_errors,
 )
@@ -906,3 +908,149 @@ class TestUnresolvedCardErrors:
         deck = _deck()
         with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
             assert unresolved_card_errors(deck) == []
+
+
+# ---------------------------------------------------------------------------
+# enrich_crypt_cards — id attribution
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichCryptCardsId:
+    """Verify that enrich_crypt_cards() sets card.id from the best krcg version."""
+
+    @pytest.fixture(autouse=True)
+    def _inject_krcg(self, fake_crypt_krcg: dict[str, Any]) -> None:
+        self.krcg_data = fake_crypt_krcg
+
+    def _patch_krcg(self):
+        krcg_data = self.krcg_data
+
+        @contextlib.contextmanager
+        def _ctx():
+            def _lookup(name: str) -> list[CryptCard]:
+                data = krcg_data.get(name)
+                if data is None:
+                    return []
+                entries: list[dict[str, Any]] = (
+                    cast(list[dict[str, Any]], data) if isinstance(data, list) else [data]
+                )
+                return [CryptCard(count=0, name=name, **entry) for entry in entries]
+
+            with patch("channel_ten.validator.get_all_vamp_variants", side_effect=_lookup):
+                yield
+
+        return _ctx()
+
+    def test_id_set_from_krcg(self):
+        card = _crypt_card("Nathan Turner", capacity=0, clan="Unknown", grouping=0)
+        deck = _deck(crypt=[card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert deck.crypt[0].id == 200848
+
+    def test_existing_id_not_overwritten(self):
+        card = _crypt_card("Nathan Turner", capacity=0, clan="Unknown", grouping=0)
+        card.id = 9999
+        deck = _deck(crypt=[card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert deck.crypt[0].id == 9999
+
+    def test_id_stays_none_when_card_unknown(self):
+        card = _crypt_card("Unknown Vampire", capacity=5, clan="Nosferatu", grouping=3)
+        deck = _deck(crypt=[card])
+        with self._patch_krcg():
+            enrich_crypt_cards(deck)
+        assert deck.crypt[0].id is None
+
+
+# ---------------------------------------------------------------------------
+# enrich_card_ids
+# ---------------------------------------------------------------------------
+
+
+class _FakeKrcgCard:
+    """Minimal stand-in for a krcg Card object."""
+
+    def __init__(self, card_id: int) -> None:
+        self.id = card_id
+
+
+class TestEnrichCardIds:
+    def _patch(self, available: bool = True, card_id: int | None = 42):
+        @contextlib.contextmanager
+        def _ctx():
+            fake = _FakeKrcgCard(card_id) if card_id is not None else None
+            with (
+                patch("channel_ten.validator.is_krcg_loaded", return_value=available),
+                patch("channel_ten.validator.krcg_card_search", return_value=fake),
+            ):
+                yield
+
+        return _ctx()
+
+    def test_sets_id_on_library_card(self):
+        deck = _deck()
+        assert deck.library_sections[0].cards[0].id is None
+        with self._patch(card_id=42):
+            enrich_card_ids(deck)
+        assert deck.library_sections[0].cards[0].id == 42
+
+    def test_skips_card_with_existing_id(self):
+        deck = _deck()
+        deck.library_sections[0].cards[0].id = 99
+        with self._patch(card_id=42):
+            enrich_card_ids(deck)
+        assert deck.library_sections[0].cards[0].id == 99
+
+    def test_returns_description_of_attributed_ids(self):
+        deck = _deck()
+        with self._patch(card_id=42):
+            result = enrich_card_ids(deck)
+        assert result  # at least one description returned
+
+    def test_returns_empty_when_krcg_unavailable(self):
+        deck = _deck()
+        with self._patch(available=False):
+            result = enrich_card_ids(deck)
+        assert result == []
+        assert deck.library_sections[0].cards[0].id is None
+
+    def test_returns_empty_when_card_not_in_krcg(self):
+        deck = _deck()
+        with self._patch(card_id=None):
+            result = enrich_card_ids(deck)
+        assert result == []
+        assert deck.library_sections[0].cards[0].id is None
+
+
+# ---------------------------------------------------------------------------
+# missing_card_id_errors
+# ---------------------------------------------------------------------------
+
+
+class TestMissingCardIdErrors:
+    def test_returns_error_when_crypt_card_has_no_id(self):
+        deck = _deck()
+        assert deck.crypt[0].id is None
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert missing_card_id_errors(deck) == ["missing_card_id"]
+
+    def test_returns_error_when_library_card_has_no_id(self):
+        deck = _deck()
+        deck.crypt[0].id = 1
+        assert deck.library_sections[0].cards[0].id is None
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert missing_card_id_errors(deck) == ["missing_card_id"]
+
+    def test_returns_empty_when_all_ids_set(self):
+        deck = _deck()
+        deck.crypt[0].id = 1
+        deck.library_sections[0].cards[0].id = 2
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert missing_card_id_errors(deck) == []
+
+    def test_returns_empty_when_krcg_unavailable(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            assert missing_card_id_errors(deck) == []
