@@ -49,7 +49,7 @@ def register(sub: SubParsersAction) -> None:
         help="Import TWDs from GiottoVerducci/TWD that are not already in the base.",
     )
     p.add_argument(
-        "--output-dir",
+        "--twds-dir",
         "-o",
         type=Path,
         default=Path("twds"),
