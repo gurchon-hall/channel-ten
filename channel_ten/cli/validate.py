@@ -82,6 +82,13 @@ def register(sub: SubParsersAction) -> None:
         help="Perform a full validation of all tournaments (default: False).",
     )
     p.add_argument(
+        "--errors-only",
+        action="store_true",
+        default=False,
+        dest="errors_only",
+        help="Validate only files currently in the errors/ subdirectory.",
+    )
+    p.add_argument(
         "--twds-dir",
         type=Path,
         default=Path("twds"),
@@ -126,6 +133,24 @@ def _iter_published_yaml(
         parts = yaml_file.relative_to(twds_dir).parts
         if parts and parts[0] in SKIP_DIRS:
             continue
+        try:
+            event_id = int(yaml_file.stem)
+        except ValueError:
+            event_id = -1
+        if event_id in skip_event_ids:
+            logger.debug("skipping %s (listed in %s)", yaml_file.name, SKIP_EVENTS_FILENAME)
+            continue
+        yield yaml_file
+
+
+def _iter_errors_yaml(
+    twds_dir: Path, skip_event_ids: frozenset[int] = frozenset()
+) -> Iterator[Path]:
+    """Yield every YAML file under twds/errors/ that is not in skip_event_ids."""
+    errors_dir = twds_dir / "errors"
+    if not errors_dir.exists():
+        return
+    for yaml_file in sorted(errors_dir.rglob("*.yaml")):
         try:
             event_id = int(yaml_file.stem)
         except ValueError:
@@ -189,6 +214,7 @@ def run(args: argparse.Namespace) -> int:
 
     yaml = YAML()
     full_validation: bool = args.full_validation
+    errors_only: bool = args.errors_only
     twds_dir: Path = args.twds_dir
     dry_run: bool = args.dry_run
 
@@ -198,8 +224,14 @@ def run(args: argparse.Namespace) -> int:
     if skip_event_ids:
         logger.info("Skipping %d event(s) listed in %s.", len(skip_event_ids), SKIP_EVENTS_FILENAME)
 
+    yaml_iter: Iterator[Path] = (
+        _iter_errors_yaml(twds_dir, skip_event_ids)
+        if errors_only
+        else _iter_published_yaml(twds_dir, full_validation, skip_event_ids)
+    )
+
     with httpx.Client(headers=HEADERS, follow_redirects=True, timeout=60.0) as client:
-        for path in _iter_published_yaml(twds_dir, full_validation, skip_event_ids):
+        for path in yaml_iter:
             with open(path, encoding="utf-8") as fh:
                 raw = yaml.load(fh)  # pyright: ignore[reportUnknownMemberType]
 
@@ -208,10 +240,17 @@ def run(args: argparse.Namespace) -> int:
 
             data: dict[str, Any] = cast(dict[str, Any], raw)
 
+            # TWDA-imported files have no forum thread: forum_post_url is set
+            # to the event-calendar URL as a fallback. Skip them here — the
+            # import command is the right tool to refresh these from the archive.
+            forum_post_url: str = data.get("forum_post_url") or ""
+            if "/event-calendar/" in forum_post_url:
+                logger.debug("skipping %s (TWDA import, no forum thread)", path.name)
+                continue
+
             dirty = False
 
             # Step 1: rescrape the forum post for fresh tournament data
-            forum_post_url: str = data.get("forum_post_url") or ""
             if forum_post_url and not dry_run:
                 try:
                     fresh = extract_twd_from_thread(

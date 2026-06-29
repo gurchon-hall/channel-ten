@@ -24,6 +24,18 @@ growing version gap since `PR #14 <https://github.com/gurchon-hall/channel-ten/p
 Added
 -----
 
+- ``--errors-only`` flag on the ``validate`` subcommand: when set, only files
+  under ``twds/errors/`` are processed (instead of the full published tree or
+  the most-recent-25 fast path).  Useful for quickly checking whether
+  previously failing decks can be recovered after a data fix.  Respects
+  ``skip_events.txt`` and ``--dry-run`` like the normal ``validate`` path.
+- ``validate`` now skips files whose ``forum_post_url`` contains
+  ``/event-calendar/``: these are TWDA-imported events that have no forum
+  thread (the event-calendar URL is used as a fallback source reference).
+  Attempting to rescrape them produced a spurious ``No div.kmsg found``
+  warning.  They are now silently skipped at ``DEBUG`` level; the ``import``
+  subcommand remains the correct tool to refresh them from the archive.
+
 - ``Card`` base Pydantic model in ``models.py`` with ``count``, ``name``,
   ``id``, and ``comment`` fields.  ``CryptCard`` and ``LibraryCard`` now inherit
   from it, eliminating the duplicated ``comment`` field.
