@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from channel_ten.cli import _build_parser, main  # pyright: ignore[reportPrivateUsage]
 from channel_ten._logger import setup_logging
+from channel_ten.cli import _build_parser, main  # pyright: ignore[reportPrivateUsage]
 from channel_ten.cli._common import reconfigure_windows_stdio
 
 # ---------------------------------------------------------------------------

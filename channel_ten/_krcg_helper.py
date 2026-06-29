@@ -226,7 +226,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[CryptCard]:
             else:
                 try:
                     grouping = int(str(raw_group)[1:])  # "G3" → 3
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     continue
 
             disciplines = " ".join(candidate.disciplines) if candidate.disciplines else ""
@@ -246,7 +246,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[CryptCard]:
             )
 
         return result
-    except (KeyError, AttributeError, TypeError, ValueError):
+    except KeyError, AttributeError, TypeError, ValueError:
         return []
 
 

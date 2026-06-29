@@ -56,7 +56,9 @@ def _deck(**kwargs: Any) -> Deck:
 def _tournament(**kwargs: Any) -> dict[str, Any]:
     if "deck" in kwargs:
         deck_obj = kwargs["deck"]
-        deck_data: Any = deck_obj.model_dump(exclude_none=True) if isinstance(deck_obj, Deck) else deck_obj
+        deck_data: Any = (
+            deck_obj.model_dump(exclude_none=True) if isinstance(deck_obj, Deck) else deck_obj
+        )
     else:
         deck_kw = {k: v for k, v in kwargs.items() if k in Deck.model_fields}
         deck_data = _deck(**deck_kw).model_dump(exclude_none=True)
@@ -518,7 +520,9 @@ class TestEnrichCryptCards:
                 data = krcg_data.get(name)
                 if data is None:
                     return []
-                entries: list[dict[str, Any]] = cast(list[dict[str, Any]], data) if isinstance(data, list) else [data]
+                entries: list[dict[str, Any]] = (
+                    cast(list[dict[str, Any]], data) if isinstance(data, list) else [data]
+                )
                 return [CryptCard(count=0, name=name, **entry) for entry in entries]
 
             def _fallback(_: str) -> list[CryptCard]:

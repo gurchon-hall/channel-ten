@@ -218,8 +218,7 @@ def run(args: argparse.Namespace) -> int:
                     )
                 if section_fixes:
                     console.print(
-                        f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n"
-                        + "\n".join(section_fixes)
+                        f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n" + "\n".join(section_fixes)
                     )
 
             # Step 4: fetch official event date for date-coherence check

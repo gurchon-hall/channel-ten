@@ -68,9 +68,7 @@ _ENRICH_FIELDS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 
 
-def _pick_best_crypt_version(
-    versions: list[CryptCard], reference_groups: set[int]
-) -> CryptCard:
+def _pick_best_crypt_version(versions: list[CryptCard], reference_groups: set[int]) -> CryptCard:
     """Pick the grouping version that best fits the established group range.
 
     Grouping rule: all non-ANY groups must form a set of at most 2 consecutive integers.
@@ -121,9 +119,7 @@ def enrich_crypt_cards(deck: Deck) -> list[str]:
     if not deck.crypt:
         return []
 
-    all_versions: list[list[CryptCard]] = [
-        get_all_vamp_variants(card.name) for card in deck.crypt
-    ]
+    all_versions: list[list[CryptCard]] = [get_all_vamp_variants(card.name) for card in deck.crypt]
 
     fixed_groups: set[int] = set()
     for versions in all_versions:
