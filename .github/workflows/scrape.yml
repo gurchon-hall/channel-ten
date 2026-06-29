@@ -71,7 +71,7 @@ jobs:
       - name: Build scrape command
         id: build_cmd
         run: |
-          CMD="channel-ten scrape --output-dir eternal-vigilance"
+          CMD="uv run --project ./channel-ten channel-ten scrape --output-dir eternal-vigilance"
 
           START_PAGE="${{ github.event.inputs.start_page }}"
           if [ -z "$START_PAGE" ]; then

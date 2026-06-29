@@ -60,7 +60,7 @@ jobs:
       - name: Build import command
         id: build_cmd
         run: |
-          CMD="channel-ten import --output-dir eternal-vigilance"
+          CMD="uv run --project ./channel-ten channel-ten import --output-dir eternal-vigilance"
 
           LIMIT="${{ github.event.inputs.limit }}"
           if [ -n "$LIMIT" ]; then
