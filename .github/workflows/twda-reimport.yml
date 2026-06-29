@@ -1,7 +1,7 @@
-name: TWD resync archive
+﻿name: TWD resync archive
 
 on:
-  # Run on a schedule — every Monday at 08:00 UTC
+  # Run on a schedule â€” every Monday at 08:00 UTC
   # This is 2h after the start of WF publish
   schedule:
     - cron: "0 8 * * 1"
@@ -46,7 +46,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           python-version: "3.14"
@@ -112,3 +112,4 @@ jobs:
           done
           echo "Push failed after 3 attempts"
           exit 1
+

@@ -1,4 +1,4 @@
-name: TWD Validate scrapes
+﻿name: TWD Validate scrapes
 
 on:
   # Run every Sunday at 20:00 UTC
@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0   # full history for clean diffs
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           python-version: "3.14"
@@ -86,3 +86,4 @@ jobs:
           git commit -m "chore: validate VTES TWD $(date -u +%Y-%m-%d)"
           git pull --rebase origin main
           git push
+

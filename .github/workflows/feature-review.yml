@@ -1,4 +1,4 @@
-name: Copilot Feature Request Review
+﻿name: Copilot Feature Request Review
 
 on:
   issues:
@@ -23,8 +23,9 @@ jobs:
               body: [
                 "@github-copilot Please review this feature request and provide:",
                 "",
-                "1. **Feasibility assessment** — is this technically feasible given the current codebase and architecture?",
-                "2. **Suggested changes** — improvements or clarifications to the proposal before implementation begins.",
-                "3. **Potential risks or blockers** — anything that could complicate the implementation.",
+                "1. **Feasibility assessment** â€” is this technically feasible given the current codebase and architecture?",
+                "2. **Suggested changes** â€” improvements or clarifications to the proposal before implementation begins.",
+                "3. **Potential risks or blockers** â€” anything that could complicate the implementation.",
               ].join("\n")
             });
+

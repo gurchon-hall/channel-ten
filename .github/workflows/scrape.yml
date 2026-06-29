@@ -1,7 +1,7 @@
-name: TWD Scrape VEKN forum
+﻿name: TWD Scrape VEKN forum
 
 on:
-  # Run on a schedule — every day at 06:00 UTC
+  # Run on a schedule â€” every day at 06:00 UTC
   schedule:
     - cron: "0 6 * * *"
 
@@ -57,7 +57,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           python-version: "3.14"
@@ -128,3 +128,4 @@ jobs:
           done
           echo "Push failed after 3 attempts"
           exit 1
+

@@ -1,4 +1,4 @@
-name: TWD Publish scrapes
+﻿name: TWD Publish scrapes
 
 on:
   # Run every Monday at 08:00 UTC (after the weekly scrape has run)
@@ -32,7 +32,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           python-version: "3.14"
@@ -60,7 +60,7 @@ jobs:
         env:
           # A PAT with 'public_repo' scope stored as TWD_GITHUB_TOKEN.
           # The script forks GiottoVerducci/TWD into the token owner's account
-          # and opens a PR from the fork — no direct write access to that repo needed.
+          # and opens a PR from the fork â€” no direct write access to that repo needed.
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: channel-ten publish --twds-dir eternal-vigilance --verbose
 
@@ -76,3 +76,4 @@ jobs:
             git commit -m "chore: publish report $(date -u +%Y-%m-%d)"
             git push
           fi
+
