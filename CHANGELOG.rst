@@ -15,8 +15,9 @@ starting from v0.1.0.
 Unreleased
 ==========
 
-Card ID support, event exclusion from validation, and a one-time card-rename
-migration script.  Card ID feature first implemented by
+Card ID support, event exclusion from validation, ``ANY``-grouping crypt
+parsing, rotating log files, and a one-time card-rename migration script.
+Card ID feature first implemented by
 `@Zavierazo <https://github.com/Zavierazo>`_; refactored here due to the
 growing version gap since `PR #14 <https://github.com/gurchon-hall/channel-ten/pull/14>`_.
 
@@ -37,6 +38,9 @@ Added
   ``["missing_card_id"]`` if any crypt or library card still has ``id=None``
   after enrichment.  Returns ``[]`` when krcg is unavailable (no false positives
   offline).
+- ``missing_card_id`` added to the ``error_types()`` validation pipeline in
+  ``validator.py``; triggered when any card in the deck still has ``id=None``
+  after enrichment.
 - ``scripts/migrate_card_names.py``: one-time migration script that walks an
   eternal-vigilance checkout, applies ``OLD_TO_NEW_NAME`` renames, re-enriches
   decks, and writes YAML back in-place.  Includes
@@ -49,6 +53,15 @@ Added
   tournament posts that mix the TWD with contestants' decks and require a
   permanent manual edit.  File format: one integer event ID per line; lines
   starting with ``#`` are comments.
+- **Rotating log files**: ``setup_logging()`` in ``_logger.py`` now attaches a
+  ``RotatingFileHandler`` to the ``channel_ten`` logger in addition to the Rich
+  console handler.  Logs are written to ``.log/channel_ten.log`` at ``DEBUG``
+  level with up to 5 × 100 MB backup files.  The ``.log/`` directory is created
+  automatically and added to ``.gitignore``.
+- ``scripts/test_id_and_any.py`` rewritten to run the full scraping pipeline
+  (scrape → parse → enrich → validate → route) for a single forum URL and save
+  the resulting YAML under ``twds/``.  Accepts the URL as an optional positional
+  argument; defaults to a known Wroclaw 2023 thread.
 
 Changed
 -------
@@ -61,6 +74,16 @@ Changed
 - ``_ENRICH_FIELDS`` in ``validator.py`` gains an explanatory comment: ``id`` is
   excluded because fields in that set are always overwritten on re-enrichment,
   whereas ``id`` must never be cleared once set.
+- Crypt-line regex in ``parser/_helpers.py``: disciplines group changed from
+  ``+`` (one-or-more) to ``*`` (zero-or-more) so that crypt cards with no
+  printed disciplines are accepted.
+- Grouping field in the crypt-line regex now accepts the literal token ``ANY``
+  (case-insensitive) in addition to an integer; parsed as the string ``"ANY"``
+  on ``CryptCard.grouping``.
+- CI workflows ``scrape.yml`` and ``twda-reimport.yml`` updated to invoke the
+  CLI via ``uv run --project`` instead of a bare ``uv run``, ensuring the
+  correct project environment is resolved when the working directory is a
+  sibling checkout.
 
 ----
 

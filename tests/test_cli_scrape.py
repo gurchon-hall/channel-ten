@@ -6,7 +6,7 @@ import tempfile
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import (
     AsyncMock,
     MagicMock,
@@ -60,10 +60,13 @@ def _patch_pipeline(**overrides: Any):
 
     mgrs: list[MagicMock | AsyncMock] = []
     for name, rv in patches.items():
-        p: MagicMock | AsyncMock = patch(
-            f"channel_ten.cli.scrape.{name}",
-            return_value=rv,
-        )  # pyright: ignore[reportAssignmentType]
+        p: MagicMock | AsyncMock = cast(
+            MagicMock | AsyncMock,
+            patch(
+                f"channel_ten.cli.scrape.{name}",
+                return_value=rv,
+            ),
+        )
         mgrs.append(p)  # pyright: ignore[reportUnknownMemberType]
 
     @contextlib.contextmanager
