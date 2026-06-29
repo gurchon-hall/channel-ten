@@ -5,7 +5,6 @@ Based on: https://github.com/GiottoVerducci/TWD/blob/master/README.md
 
 import re
 from datetime import date, datetime
-from typing import Required, TypedDict
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -17,59 +16,6 @@ DATE_FORMATS = (
     "%Y-%m-%d",
     "%d/%m/%Y",
 )
-
-
-class Library_Card_Dict(TypedDict, total=False):
-    count: Required[int]
-    name: str
-    comment: str | None
-
-
-class Library_Section_Dict(TypedDict, total=False):
-    name: str
-    count: Required[int]
-    cards: list[Library_Card_Dict]
-
-
-class Crypt_Card_Dict(TypedDict, total=False):
-    count: int
-    name: str
-    capacity: int
-    disciplines: str
-    title: str | None
-    clan: str
-    grouping: int | str
-    path: str | None
-    comment: str | None
-
-
-class Deck_Dict(TypedDict, total=False):
-    name: str | None
-    created_by: str | None
-    description: str
-    crypt_count: int
-    crypt_min: int
-    crypt_max: int
-    crypt_avg: float
-    crypt: list[Crypt_Card_Dict]
-    library_count: int
-    library_sections: list[Library_Section_Dict]
-
-
-class Tournament_Dict(TypedDict, total=False):
-    name: str
-    location: str
-    date_start: date
-    date_end: date | None
-    rounds_format: str
-    players_count: int
-    winner: str
-    vekn_number: int | None
-    event_url: str
-    event_id: int | None
-    vp_comment: str | None
-    forum_post_url: str
-    deck: Deck_Dict
 
 
 class CryptCard(BaseModel):
@@ -149,7 +95,7 @@ class Tournament(BaseModel):
     forum_post_url: str | None = None  # source forum URL (for traceability)
 
     # --- Keep at the end to keep tournament data together ---
-    deck: Deck | None
+    deck: Deck | None = None
 
     @model_validator(mode="after")
     def derive_event_id(self) -> Tournament:

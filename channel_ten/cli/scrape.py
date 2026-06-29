@@ -17,12 +17,13 @@ import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import httpx
 
-from channel_ten.cli._common import SubParsersAction, console, setup_logging
-from channel_ten.models import Deck_Dict, Tournament, Tournament_Dict
+from channel_ten._logger import setup_logging
+from channel_ten.cli._common import SubParsersAction, console
+from channel_ten.models import Tournament
 from channel_ten.output import write_tournament_yaml
 from channel_ten.output.yaml import tournament_to_yaml_str
 from channel_ten.scraper import (
@@ -48,23 +49,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _to_serializable(obj: Tournament) -> Tournament_Dict:
-    """Convert a Pydantic model to a plain dict, filtering None values."""
-
-    def _filter_none(value: Any) -> Any:
-        if isinstance(value, dict):
-            d = cast(dict[str, Any], value)
-            return {k: _filter_none(v) for k, v in d.items() if v is not None}
-        if isinstance(value, list):
-            items = cast(list[Any], value)  # type: ignore[redundant-cast]
-            return [_filter_none(item) for item in items]
-        return value
-
-    return cast(Tournament_Dict, _filter_none(obj.model_dump()))
-
-
-def serialize_tournament(obj: Tournament) -> Tournament_Dict:
-    return _to_serializable(obj)
+def serialize_tournament(obj: Tournament) -> dict[str, Any]:
+    """Convert a Tournament Pydantic model to a plain dict, excluding None values."""
+    return obj.model_dump(exclude_none=True)
 
 
 # ---------------------------------------------------------------------------
@@ -172,13 +159,11 @@ def _lookup_player(
 
 def _enrich_with_krcg(tournament: Tournament) -> Tournament:
     """Step 5: validate and enrich crypt and library cards via krcg."""
-    data = _to_serializable(tournament)
-    deck_data = cast(Deck_Dict, data.get("deck"))
-    if not deck_data:
+    if not tournament.deck:
         return tournament
 
-    crypt_fixes = enrich_crypt_cards(deck_data)
-    section_fixes = fix_card_sections(deck_data)
+    crypt_fixes = enrich_crypt_cards(tournament.deck)
+    section_fixes = fix_card_sections(tournament.deck)
 
     if crypt_fixes:
         console.print(
@@ -190,10 +175,6 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
             + "\n".join(section_fixes)
         )
 
-    if crypt_fixes or section_fixes:
-        data["deck"] = deck_data
-        return Tournament.model_validate(data)
-
     return tournament
 
 
@@ -203,8 +184,6 @@ def _validate_content(
     delay: float,
 ) -> list[str]:
     """Step 6: validate tournament content and return a list of error-type strings."""
-    data = _to_serializable(tournament)
-
     calendar_date = None
     if tournament.event_url:
         try:
@@ -216,7 +195,7 @@ def _validate_content(
                 exc,
             )
 
-    errors = error_types(data, calendar_date=calendar_date)
+    errors = error_types(tournament.model_dump(exclude_none=True), calendar_date=calendar_date)
     if errors:
         logger.debug(
             "Validation errors for %s: %s",

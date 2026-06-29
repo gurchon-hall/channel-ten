@@ -1,12 +1,10 @@
 """Shared helpers for all CLI subcommands."""
 
 import argparse
-import logging
 import sys
 from typing import Any, Protocol
 
 from rich.console import Console
-from rich.logging import RichHandler
 
 
 class SubParsersAction(Protocol):
@@ -45,14 +43,3 @@ def reconfigure_windows_stdio() -> None:
 
 
 console = Console()
-
-
-def setup_logging(verbose: bool) -> None:
-    handler = RichHandler(rich_tracebacks=True, show_path=False)
-    logging.basicConfig(
-        level=logging.ERROR,
-        format="%(message)s",
-        handlers=[handler],
-    )
-    if verbose:
-        logging.getLogger("channel_ten").setLevel(logging.DEBUG)

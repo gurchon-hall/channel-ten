@@ -23,7 +23,8 @@ from pathlib import Path
 
 import httpx
 
-from channel_ten.cli._common import SubParsersAction, console, setup_logging
+from channel_ten._logger import setup_logging
+from channel_ten.cli._common import SubParsersAction, console
 from channel_ten.cli.scrape import RouteCounters, process_tournament, route_tournament
 from channel_ten.output.yaml import find_existing_yaml
 from channel_ten.parser import parse_twd_text

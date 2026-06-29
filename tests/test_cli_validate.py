@@ -25,13 +25,6 @@ from channel_ten.cli.validate import (
     _check_and_update_winner,  # pyright: ignore[reportPrivateUsage]
     _iter_published_yaml,  # pyright: ignore[reportPrivateUsage]
 )
-from channel_ten.models import (
-    Crypt_Card_Dict,
-    Deck_Dict,
-    Library_Card_Dict,
-    Library_Section_Dict,
-    Tournament_Dict,
-)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -51,46 +44,44 @@ def _write_yaml(path: Path, data: Any) -> None:
         _yaml.dump(data, fh)  # pyright: ignore[reportUnknownMemberType]
 
 
-def _tournament_dict(**overrides: Any) -> Tournament_Dict:
-    base = Tournament_Dict(
-        name="Test Event",
-        location="Paris, France",
-        date_start=date(2023, 3, 25),
-        rounds_format="3R+F",
-        players_count=15,
-        winner="Jane Doe",
-        vekn_number=3940009,
-        event_url="https://www.vekn.net/event-calendar/event/9999",
-        event_id=9999,
-        forum_post_url="https://www.vekn.net/forum/event-reports-and-twd/99999-test-event",
-        deck=Deck_Dict(
-            crypt=[
-                Crypt_Card_Dict(
-                    count=2,
-                    name="Nathan Turner",
-                    capacity=4,
-                    disciplines="PRO ani",
-                    clan="Gangrel",
-                    grouping=6,
-                )
+def _tournament_dict(**overrides: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "name": "Test Event",
+        "location": "Paris, France",
+        "date_start": date(2023, 3, 25),
+        "rounds_format": "3R+F",
+        "players_count": 15,
+        "winner": "Jane Doe",
+        "vekn_number": 3940009,
+        "event_url": "https://www.vekn.net/event-calendar/event/9999",
+        "event_id": 9999,
+        "forum_post_url": "https://www.vekn.net/forum/event-reports-and-twd/99999-test-event",
+        "deck": {
+            "crypt": [
+                {
+                    "count": 2,
+                    "name": "Nathan Turner",
+                    "capacity": 4,
+                    "disciplines": "PRO ani",
+                    "clan": "Gangrel",
+                    "grouping": 6,
+                }
             ],
-            crypt_count=2,
-            crypt_min=4,
-            crypt_max=4,
-            crypt_avg=4.0,
-            library_sections=[
-                Library_Section_Dict(
-                    name="Master",
-                    count=1,
-                    cards=[Library_Card_Dict(count=1, name="Blood Doll")],
-                )
+            "crypt_count": 2,
+            "crypt_min": 4,
+            "crypt_max": 4,
+            "crypt_avg": 4.0,
+            "library_sections": [
+                {
+                    "name": "Master",
+                    "count": 1,
+                    "cards": [{"count": 1, "name": "Blood Doll"}],
+                }
             ],
-            library_count=1,
-        ),
-    )
-    for k, v in overrides.items():
-        if k in Tournament_Dict.__annotations__:
-            base[k] = v
+            "library_count": 1,
+        },
+    }
+    base.update(overrides)
     return base
 
 
@@ -566,7 +557,7 @@ class TestValidateRunEdgeCases:
     def test_reorder_tournament_dict_preserves_extra_keys(self):
         """Extra keys beyond the Tournament model are appended at the end."""
         data = _tournament_dict()
-        data["extra_field"] = "extra_value"  # type: ignore[index]
+        data["extra_field"] = "extra_value"
         reordered = validate_mod._reorder_tournament_dict(data)  # pyright: ignore[reportPrivateUsage]
         keys = list(reordered.keys())
         assert "extra_field" in keys

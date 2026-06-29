@@ -12,6 +12,55 @@ starting from v0.1.0.
 
 ----
 
+v0.7.0 — 2026-06-29
+====================
+
+Full removal of TypedDict usage in favour of Pydantic models, logging
+configuration centralised to ``_logger.py``, and code-style alignment with
+CLAUDE.md conventions.
+
+Added
+-----
+- ``channel_ten/_logger.py``: dedicated logging-configuration module
+  containing ``setup_logging(verbose)``.  Modules no longer call
+  ``logging.basicConfig`` themselves.
+
+Changed
+-------
+- All five TypedDicts (``Crypt_Card_Dict``, ``Library_Card_Dict``,
+  ``Library_Section_Dict``, ``Deck_Dict``, ``Tournament_Dict``) removed from
+  ``models.py``.  Enrichment and section-fix functions now accept and mutate
+  ``Deck`` / ``CryptCard`` / ``LibraryCard`` / ``LibrarySection`` Pydantic
+  models directly.
+- ``error_types()`` parameter type narrowed from ``Tournament_Dict`` to
+  ``dict[str, Any]``, keeping raw-dict access for pre-validation YAML data.
+- ``get_all_vamp_variants()`` return type changed from
+  ``list[Crypt_Card_Dict]`` to ``list[CryptCard]``; entry construction uses
+  ``CryptCard(...)`` instead of a plain dict literal.
+- ``serialize_tournament()`` in ``cli/scrape.py`` simplified to
+  ``tournament.model_dump(exclude_none=True)``; the intermediate
+  ``_to_serializable`` helper removed.
+- ``_enrich_with_krcg()`` in ``cli/scrape.py`` now mutates ``tournament.deck``
+  in-place and returns the same object (no copy-on-return).
+- ``setup_logging`` moved from ``cli/_common.py`` to ``channel_ten/_logger``;
+  all CLI subcommands (``scrape``, ``parse``, ``publish``, ``reimport``) and
+  tests updated to import from the new location.
+- Logger names corrected: ``_logger`` → ``logger`` in ``_krcg_helper.py`` and
+  ``validator.py`` per CLAUDE.md conventions.
+- All imports moved to module top; no function-body imports remain.
+- ``_iter_published_yaml`` annotated with ``-> Iterator[Path]``.
+
+Fixed
+-----
+- Corrupted duplicate block in ``error_types()``'s library-count consistency
+  check (leftover from an incomplete edit).
+- ``no-any-return`` mypy errors in ``_krcg_helper.py``; ``card.printed_name``
+  (typed ``Any`` from krcg's optional dependency) wrapped in ``str()``.
+- Variable-reuse type conflict in ``canonicalize_card_names``; library-card
+  loop renamed to ``lib_card``.
+
+----
+
 v0.6.0 — 2026-06-29
 ====================
 

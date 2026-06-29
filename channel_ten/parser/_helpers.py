@@ -115,7 +115,7 @@ class LineHelpers:
             return raw
         try:
             repaired = raw.encode("cp1252").decode("utf-8")
-        except UnicodeEncodeError, UnicodeDecodeError:
+        except (UnicodeEncodeError, UnicodeDecodeError):
             return raw
         if len(ParserRegex.MOJIBAKE_MARKER_RE.findall(repaired)) < len(
             ParserRegex.MOJIBAKE_MARKER_RE.findall(raw)

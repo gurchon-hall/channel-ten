@@ -8,7 +8,8 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 
-from channel_ten.cli._common import SubParsersAction, console, setup_logging
+from channel_ten._logger import setup_logging
+from channel_ten.cli._common import SubParsersAction, console
 from channel_ten.models import Tournament
 from channel_ten.publisher import BatchPRResult, publish_all_as_single_pr
 

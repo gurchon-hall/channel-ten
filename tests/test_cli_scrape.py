@@ -1,6 +1,7 @@
 """Tests for the ``scrape`` CLI subcommand."""
 
 import argparse
+import contextlib
 import tempfile
 from collections.abc import Iterator
 from datetime import date
@@ -44,8 +45,6 @@ def _patch_pipeline(**overrides: Any):
       - fetch_player returns None
       - enrich_crypt_cards / fix_card_sections return []
     """
-    import contextlib
-
     patches: dict[str, Iterator[Any] | list[str] | None] = {
         "scrape_forum": iter([]),
         "fetch_event_name": None,
@@ -423,7 +422,7 @@ class TestScrapeInternalPaths:
                 result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
                     t
                 )
-        assert result is not t  # model was rebuilt
+        assert result is t  # same object returned; mutations are in-place
 
     def test_enrich_with_krcg_prints_section_fixes(self):
         t = make_tournament()
@@ -435,7 +434,7 @@ class TestScrapeInternalPaths:
                 result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
                     t
                 )
-        assert result is not t
+        assert result is t  # same object returned; mutations are in-place
 
     def test_lookup_player_coerces_winner_name(self):
         """When fetch_player returns a different canonical name, it is printed and stored."""

@@ -20,13 +20,16 @@ be recovered when the underlying issue (e.g. missing calendar results) is fixed.
 
 import argparse
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
 import httpx
+from ruamel.yaml import YAML
 
 from channel_ten.cli._common import SubParsersAction, console
-from channel_ten.models import Deck_Dict, Tournament, Tournament_Dict
+from channel_ten.cli.scrape import serialize_tournament
+from channel_ten.models import Deck, Tournament
 from channel_ten.scraper._forum import extract_twd_from_thread
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
 from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
@@ -46,7 +49,7 @@ _FAST_VALIDATION_YAML_FILES_NUMBER_THRESHOLD = 25
 _TOURNAMENT_FIELD_ORDER = list(Tournament.model_fields.keys())
 
 
-def _reorder_tournament_dict(data: Tournament_Dict) -> dict[str, Any]:
+def _reorder_tournament_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Return a new dict with keys ordered as per the Tournament model definition."""
     ordered: dict[str, Any] = {k: data[k] for k in _TOURNAMENT_FIELD_ORDER if k in data}
     for k in data:
@@ -82,7 +85,7 @@ def register(sub: SubParsersAction) -> None:
     p.set_defaults(func=run)
 
 
-def _iter_published_yaml(twds_dir: Path, full_validation: bool):
+def _iter_published_yaml(twds_dir: Path, full_validation: bool) -> Iterator[Path]:
     """Yield all YAML files that are NOT inside changes_required/."""
     for yaml_file in _filter_yaml_paths(twds_dir, full_validation):
         parts = yaml_file.relative_to(twds_dir).parts
@@ -108,7 +111,7 @@ def _filter_yaml_paths(twds_dir: Path, full_validation: bool) -> list[Path]:
 
 def _check_and_update_winner(
     client: httpx.Client,
-    data: Tournament_Dict,
+    data: dict[str, Any],
     event_url: str,
     delay: float = DEFAULT_DELAY_SECONDS,
 ) -> bool:
@@ -122,7 +125,7 @@ def _check_and_update_winner(
 
     calendar_winner = fetch_event_winner(client, event_url, delay)
     if calendar_winner and calendar_winner != data.get("winner"):
-        data["winner"] = calendar_winner  # type: ignore[assignment]
+        data["winner"] = calendar_winner
         dirty = True
 
     winner: str = data.get("winner") or ""
@@ -135,18 +138,16 @@ def _check_and_update_winner(
 
     canonical_name, vekn_number = result
     if canonical_name != data.get("winner"):
-        data["winner"] = canonical_name  # type: ignore[assignment]
+        data["winner"] = canonical_name
         dirty = True
     if vekn_number != data.get("vekn_number"):
-        data["vekn_number"] = vekn_number  # type: ignore[assignment]
+        data["vekn_number"] = vekn_number
         dirty = True
 
     return dirty
 
 
 def run(args: argparse.Namespace) -> int:
-    from ruamel.yaml import YAML
-
     yaml = YAML()
     full_validation: bool = args.full_validation
     twds_dir: Path = args.twds_dir
@@ -163,7 +164,7 @@ def run(args: argparse.Namespace) -> int:
             if not isinstance(raw, dict):
                 continue
 
-            data = cast(Tournament_Dict, raw)
+            data: dict[str, Any] = cast(dict[str, Any], raw)
 
             dirty = False
 
@@ -175,13 +176,11 @@ def run(args: argparse.Namespace) -> int:
                         client, forum_post_url, delay=DEFAULT_DELAY_SECONDS
                     )
                     if fresh is not None:
-                        from channel_ten.cli.scrape import serialize_tournament
-
                         fresh_data = serialize_tournament(fresh)
                         # Preserve vekn_number — forum posts never contain it
                         preserved_vekn = data.get("vekn_number")
                         if preserved_vekn is not None:
-                            fresh_data["vekn_number"] = preserved_vekn  # type: ignore[assignment]
+                            fresh_data["vekn_number"] = preserved_vekn
                         data = fresh_data
                         dirty = True
                 except Exception as exc:
@@ -199,29 +198,29 @@ def run(args: argparse.Namespace) -> int:
             # Step 3: canonicalize names, enrich crypt cards and fix library sections
             # via krcg. Canonicalization runs first so enrichment/section lookups see
             # the official spelling (localized names, "The …" order, bare crypt names).
-            deck: Deck_Dict = data.get("deck") or {}
-            if deck:
+            deck_raw: dict[str, Any] = data.get("deck") or {}
+            if deck_raw:
+                deck = Deck.model_validate(deck_raw)
                 name_fixes = canonicalize_card_names(deck)
                 crypt_fixes = enrich_crypt_cards(deck)
                 section_fixes = fix_card_sections(deck)
+                if name_fixes or crypt_fixes or section_fixes:
+                    data["deck"] = deck.model_dump(exclude_none=True)
+                    dirty = True
                 if name_fixes:
                     console.print(
                         f"[cyan]⚙[/cyan] {path.name}  names canonicalized:\n"
                         + "\n".join(name_fixes)
                     )
-                    dirty = True
                 if crypt_fixes:
                     console.print(
                         f"[cyan]⚙[/cyan] {path.name}  crypt enriched:\n" + "\n".join(crypt_fixes)
                     )
-                    dirty = True
                 if section_fixes:
                     console.print(
-                        f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n" + "\n".join(section_fixes)
+                        f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n"
+                        + "\n".join(section_fixes)
                     )
-                    dirty = True
-                if dirty:
-                    data["deck"] = deck  # type: ignore[assignment]
 
             # Step 4: fetch official event date for date-coherence check
             calendar_date = None
@@ -231,7 +230,7 @@ def run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     console.print(f"  calendar date error for {path.name}: {exc}")
 
-            # Step 4: full validation
+            # Step 5: full validation
             errors = error_types(data, calendar_date=calendar_date)
 
             if not errors:
@@ -245,7 +244,7 @@ def run(args: argparse.Namespace) -> int:
                     updated.append(path)
                 continue
 
-            # Step 5: move to errors/<first_error>/
+            # Step 6: move to errors/<first_error>/
             dest_dir = twds_dir / "errors" / errors[0]
             if dry_run:
                 console.print(

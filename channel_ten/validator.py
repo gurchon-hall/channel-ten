@@ -1,7 +1,10 @@
 """Pure validation logic for VTES TWD YAML files.
+Enrichment functions (enrich_crypt_cards, fix_card_sections,
+canonicalize_card_names, unresolved_card_errors) operate on Pydantic Deck /
+CryptCard / LibrarySection / LibraryCard models and mutate them in-place.
 
-Each function here operates on plain dicts (as loaded from YAML) and returns
-structured results — no I/O, no CLI concerns.
+error_types() accepts a raw dict[str, Any] (as loaded from YAML) so it can
+detect missing or structurally invalid fields before Pydantic validation.
 
 Error types
 -----------
@@ -44,15 +47,21 @@ from channel_ten._krcg_helper import (
     krcg_card_search,
 )
 from channel_ten.models import (
-    Crypt_Card_Dict,
-    Deck_Dict,
-    Library_Card_Dict,
-    Library_Section_Dict,
-    Tournament_Dict,
+    CryptCard,
+    Deck,
+    LibraryCard,
+    LibrarySection,
+    Tournament,
 )
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "12"))
+
+# Fields copied from krcg into a scraped CryptCard; count and name are
+# preserved from the scraped data and never overwritten.
+_ENRICH_FIELDS: frozenset[str] = frozenset(
+    {"capacity", "disciplines", "title", "clan", "grouping", "path"}
+)
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers
@@ -60,10 +69,9 @@ MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "12"))
 
 
 def _pick_best_crypt_version(
-    versions: list[Crypt_Card_Dict], reference_groups: set[int]
-) -> Crypt_Card_Dict:
-    """
-    Pick the grouping version that best fits the established group range.
+    versions: list[CryptCard], reference_groups: set[int]
+) -> CryptCard:
+    """Pick the grouping version that best fits the established group range.
 
     Grouping rule: all non-ANY groups must form a set of at most 2 consecutive integers.
     Priority:
@@ -71,97 +79,79 @@ def _pick_best_crypt_version(
       2. Version whose group extends *reference_groups* to at most 2 consecutive ints.
       3. First integer-grouped version found (fallback).
     """
-    int_versions = [v for v in versions if isinstance(v.get("grouping"), int)]
+    int_versions = [v for v in versions if isinstance(v.grouping, int)]
     if not int_versions:
         return versions[0]
 
     if reference_groups:
-        # Priority 1: group already in the established range
         for v in int_versions:
-            g = v.get("grouping")
-            if isinstance(g, int) and g in reference_groups:
+            if isinstance(v.grouping, int) and v.grouping in reference_groups:
                 return v
 
-        # Priority 2: group extends the range by exactly one consecutive integer
         for v in int_versions:
-            g = v.get("grouping")
-            if not isinstance(g, int):
+            if not isinstance(v.grouping, int):
                 continue
-            candidate = reference_groups | {g}
+            candidate = reference_groups | {v.grouping}
             c_sorted = sorted(candidate)
             if len(c_sorted) <= 2 and c_sorted[-1] - c_sorted[0] <= 1:
                 return v
 
-    # Fallback: first integer-grouped version
     return int_versions[0]
 
 
-def enrich_crypt_cards(deck: Deck_Dict) -> list[str]:
-    """
-    Enrich crypt card data using krcg card database.
+def enrich_crypt_cards(deck: Deck) -> list[str]:
+    """Enrich crypt card data using krcg card database.
 
-    For each crypt card, look it up in krcg by name and update ``capacity``,
-    ``disciplines``, ``title``, ``clan``, and ``grouping`` from the database.
-    ``count`` and ``name`` are always preserved from the scraped data.
-    Cards not found in krcg are left unchanged.
+    For each crypt card, look it up in krcg and update ``capacity``,
+    ``disciplines``, ``title``, ``clan``, ``grouping``, and ``path`` from the
+    database.  ``count`` and ``name`` are always preserved from the scraped
+    data.  Cards not found in krcg are left unchanged.
 
     When a vampire exists in multiple groupings, the version whose group fits
     the grouping rules of the rest of the crypt is used (two consecutive
     integers at most, e.g. G5-G6).  If no version fits, the first one found
     is used.
 
-    ADV and non-ADV versions are never mixed: a scraped ``"Xaviar"`` will
-    never be enriched with ``"Xaviar (ADV)"`` data, and vice versa.
+    ADV and non-ADV versions are never mixed.
 
     Mutates *deck* in-place.  Returns a list of human-readable descriptions
     of the changes made (empty when no changes were needed or krcg is
     unavailable).
     """
-    crypt = deck.get("crypt")
-    if not isinstance(crypt, list) or not crypt:
+    if not deck.crypt:
         return []
 
-    # Step 1: resolve all krcg versions for each card
-    all_versions: list[list[Crypt_Card_Dict]] = []
-    for card in crypt:
-        card_name = str(card.get("name") or "")
-        all_versions.append(get_all_vamp_variants(card_name))
+    all_versions: list[list[CryptCard]] = [
+        get_all_vamp_variants(card.name) for card in deck.crypt
+    ]
 
-    # Step 2: establish the group range from cards with exactly one version
     fixed_groups: set[int] = set()
     for versions in all_versions:
-        if len(versions) == 1:
-            g = versions[0].get("grouping")
-            if isinstance(g, int):
-                fixed_groups.add(g)
+        if len(versions) == 1 and isinstance(versions[0].grouping, int):
+            fixed_groups.add(versions[0].grouping)
 
-    # Step 3: enrich each card using the best matching version
     fixes: list[str] = []
-    for card, versions in zip(crypt, all_versions):
+    for card, versions in zip(deck.crypt, all_versions):
         if not versions:
             continue
-
         best = (
             _pick_best_crypt_version(versions, fixed_groups) if len(versions) > 1 else versions[0]
         )
-
         changed: list[str] = []
-        best_plain = cast(dict[str, Any], best)
-        card_plain = cast(dict[str, Any], card)
-        for field, new_value in best_plain.items():
-            old_value = card_plain.get(field)
+        for field in _ENRICH_FIELDS:
+            new_value = getattr(best, field)
+            old_value = getattr(card, field)
             if old_value != new_value:
-                card_plain[field] = new_value
+                setattr(card, field, new_value)
                 changed.append(f"{field}: {old_value!r} → {new_value!r}")
         if changed:
-            fixes.append(f"  {card.get('name', '')!r}: " + ", ".join(changed))
+            fixes.append(f"  {card.name!r}: " + ", ".join(changed))
 
     return fixes
 
 
-def fix_card_sections(deck: Deck_Dict) -> list[str]:
-    """
-    Validate and fix library card sections using krcg card type data.
+def fix_card_sections(deck: Deck) -> list[str]:
+    """Validate and fix library card sections using krcg card type data.
 
     For each library card, look it up in krcg and check whether it is in the
     correct section (section name == ``"/".join(sorted(card.types))``).
@@ -174,30 +164,26 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
     Returns a list of human-readable fix descriptions (empty when no changes
     were made or when krcg is unavailable).
     """
-    library_sections = deck.get("library_sections")
-    if not isinstance(library_sections, list) or not library_sections:
+    if not deck.library_sections:
         return []
 
-    # --- Pass 1: detect misassigned cards and cards in nameless sections ---
-    all_cards: list[tuple[str, Library_Card_Dict]] = []
+    all_cards: list[tuple[str, LibraryCard]] = []
     fixes: list[str] = []
     any_moved = False
 
-    for section in library_sections:
-        section_name = str(section.get("name") or "")
+    for section in deck.library_sections:
+        section_name = section.name or ""
         is_nameless = not section_name
-        cards_in_section = section.get("cards") or []
-        for card in cards_in_section:
-            card_name = str(card.get("name") or "")
+        for card in section.cards:
+            card_name = card.name or ""
             expected = get_library_card_type(card_name)
             if expected is not None and expected != section_name:
                 fixes.append(f"  {card_name!r}: {section_name!r} → {expected!r}")
                 all_cards.append((expected, card))
                 any_moved = True
             elif is_nameless:
-                # Card in a nameless section that krcg couldn't type: still flag
-                # the section for removal; the card is dropped (count mismatch
-                # will surface this via illegal_library validation).
+                # Card in a nameless section krcg couldn't type: flag for
+                # removal; the count mismatch surfaces via illegal_library.
                 any_moved = True
             else:
                 all_cards.append((section_name, card))
@@ -205,7 +191,6 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
     if not any_moved:
         return []
 
-    # --- Pass 2: rebuild sections in TYPE_ORDER ---
     type_order: list[str] = TYPE_ORDER
 
     def _order(name: str) -> int:
@@ -214,52 +199,36 @@ def fix_card_sections(deck: Deck_Dict) -> list[str]:
         except ValueError:
             return len(type_order)
 
-    sections_map: dict[str, list[Library_Card_Dict]] = {}
+    sections_map: dict[str, list[LibraryCard]] = {}
     for section_name, card in all_cards:
         sections_map.setdefault(section_name, []).append(card)
 
-    new_sections: list[Library_Section_Dict] = []
+    new_sections: list[LibrarySection] = []
     for section_name in sorted(sections_map, key=_order):
         if not section_name:
-            continue  # drop the nameless catch-all; count mismatch surfaces via illegal_library
+            continue
         cards = sections_map[section_name]
-        count = sum([c.get("count", 0) for c in cards])
-        entry = cast(
-            Library_Section_Dict,
-            {
-                "name": section_name,
-                "count": count,
-                "cards": cards,
-            },
+        new_sections.append(
+            LibrarySection(name=section_name, count=sum(c.count for c in cards), cards=cards)
         )
-        new_sections.append(entry)
 
-    deck["library_sections"] = new_sections
-    if "library_count" in deck:
-        deck["library_count"] = sum([s.get("count", 0) for s in new_sections])
+    deck.library_sections = new_sections
+    deck.library_count = sum(s.count for s in new_sections)
 
     return fixes
 
 
-def _iter_crypt_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
-    """Return every crypt card dict in *deck* (mutable references)."""
-    crypt = deck.get("crypt")
-    if isinstance(crypt, list):
-        return cast(list[dict[str, Any]], crypt)
-    return []
+def _iter_crypt_cards(deck: Deck) -> list[CryptCard]:
+    """Return every crypt card in *deck* (mutable references)."""
+    return deck.crypt
 
 
-def _iter_library_cards(deck: Deck_Dict) -> list[dict[str, Any]]:
-    """Return every library card dict in *deck* (mutable references)."""
-    cards: list[dict[str, Any]] = []
-    for section in deck.get("library_sections") or []:
-        section_cards = section.get("cards")
-        if isinstance(section_cards, list):
-            cards.extend(cast(list[dict[str, Any]], section_cards))
-    return cards
+def _iter_library_cards(deck: Deck) -> list[LibraryCard]:
+    """Return every library card in *deck* (mutable references)."""
+    return [card for section in deck.library_sections for card in section.cards]
 
 
-def canonicalize_card_names(deck: Deck_Dict) -> list[str]:
+def canonicalize_card_names(deck: Deck) -> list[str]:
     """Rewrite crypt and library card names to krcg's canonical spelling.
 
     Library cards resolve leading-"The" word order, typographic apostrophes, and
@@ -274,25 +243,25 @@ def canonicalize_card_names(deck: Deck_Dict) -> list[str]:
 
     fixes: list[str] = []
     for card in _iter_crypt_cards(deck):
-        old_name = str(card.get("name") or "")
+        old_name = card.name or ""
         if not old_name:
             continue
         new_name = canonical_crypt_name(old_name)
         if new_name != old_name:
-            card["name"] = new_name
+            card.name = new_name
             fixes.append(f"  {old_name!r} → {new_name!r}")
-    for card in _iter_library_cards(deck):
-        old_name = str(card.get("name") or "")
+    for lib_card in _iter_library_cards(deck):
+        old_name = lib_card.name or ""
         if not old_name:
             continue
         new_name = canonicalize_card_name(old_name)
         if new_name != old_name:
-            card["name"] = new_name
+            lib_card.name = new_name
             fixes.append(f"  {old_name!r} → {new_name!r}")
     return fixes
 
 
-def unresolved_card_errors(deck: Deck_Dict) -> list[str]:
+def unresolved_card_errors(deck: Deck) -> list[str]:
     """Flag decks whose card names do not resolve in krcg, for manual review.
 
     Returns ``["illegal_crypt"]`` and/or ``["illegal_library"]`` when any crypt or
@@ -303,16 +272,11 @@ def unresolved_card_errors(deck: Deck_Dict) -> list[str]:
         return []
 
     errors: list[str] = []
-    crypt = deck.get("crypt")
-    if isinstance(crypt, list) and any(
-        not krcg_card_search(str(c.get("name") or "")) for c in crypt
-    ):
+    if deck.crypt and any(not krcg_card_search(c.name) for c in deck.crypt):
         errors.append("illegal_crypt")
 
-    library_cards = [
-        c for section in (deck.get("library_sections") or []) for c in (section.get("cards") or [])
-    ]
-    if any(not krcg_card_search(str(c.get("name") or "")) for c in library_cards):
+    library_cards = _iter_library_cards(deck)
+    if any(not krcg_card_search(c.name) for c in library_cards):
         errors.append("illegal_library")
 
     return errors
@@ -324,15 +288,13 @@ def parse_date_field(raw: date | str | None) -> date | None:
         return None
     if isinstance(raw, date):
         return raw
-    from channel_ten.models import Tournament
-
     try:
         return Tournament.parse_date(raw)
     except ValueError:
         return None
 
 
-def error_types(data: Tournament_Dict, calendar_date: date | None = None) -> list[str]:
+def error_types(data: dict[str, Any], calendar_date: date | None = None) -> list[str]:
     """Return a list of validation error-type strings for one YAML file."""
     errors: list[str] = []
 
@@ -353,10 +315,8 @@ def error_types(data: Tournament_Dict, calendar_date: date | None = None) -> lis
         errors.append("limited_format")
 
     # --- Mandatory deck fields ---
-    deck_raw: Any = data.get("deck") or {}
-    deck = cast(Deck_Dict, deck_raw)
-    crypt_list_raw = deck.get("crypt")
-    crypt_list = cast(list[Library_Card_Dict], crypt_list_raw)
+    deck_raw: dict[str, Any] = data.get("deck") or {}
+    crypt_list = cast(list[dict[str, Any]], deck_raw.get("crypt") or [])
     illegal_crypt = False
     if not crypt_list:
         illegal_crypt = True
@@ -368,32 +328,32 @@ def error_types(data: Tournament_Dict, calendar_date: date | None = None) -> lis
                 groupings.add(g)
         if len(groupings) > 2 or (len(groupings) == 2 and max(groupings) - min(groupings) != 1):
             illegal_crypt = True
-        crypt_count = deck.get("crypt_count")
+        crypt_count = deck_raw.get("crypt_count")
         if crypt_count is not None:
-            expected_crypt = sum([card.get("count", 0) for card in crypt_list])
+            expected_crypt = sum(card.get("count", 0) for card in crypt_list)
             if crypt_count != expected_crypt:
                 illegal_crypt = True
     if illegal_crypt:
         errors.append("illegal_crypt")
-    if not deck.get("library_sections"):
+    if not deck_raw.get("library_sections"):
         errors.append("illegal_library")
 
     # --- Deck count consistency ---
     illegal_library = False
     if deck_raw:
-        lib_sections = deck.get("library_sections") or []
+        lib_sections = cast(list[dict[str, Any]], deck_raw.get("library_sections") or [])
         for section in lib_sections:
-            section_cards = section.get("cards") or []
+            section_cards = cast(list[dict[str, Any]], section.get("cards") or [])
             section_count = section.get("count")
             if section_count and section_cards:
-                expected_section = sum([card.get("count", 0) for card in section_cards])
+                expected_section = sum(c.get("count", 0) for c in section_cards)
                 if section_count != expected_section:
                     illegal_library = True
-                    break  # one occurrence is enough
+                    break
 
-        library_count = deck.get("library_count")
+        library_count = deck_raw.get("library_count")
         if lib_sections and library_count is not None:
-            expected_library = sum([section.get("count", 0) for section in lib_sections])
+            expected_library = sum(s.get("count", 0) for s in lib_sections)
             if library_count != expected_library:
                 illegal_library = True
     if illegal_library:

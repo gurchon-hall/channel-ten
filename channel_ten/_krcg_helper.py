@@ -2,9 +2,9 @@ import logging
 import re
 from typing import Any
 
-from channel_ten.models import Crypt_Card_Dict
+from channel_ten.models import CryptCard
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Previously imported from krcg.config; removed in krcg 5.0.
 TYPE_ORDER: list[str] = [
@@ -63,7 +63,7 @@ def is_krcg_loaded() -> bool:
         _cards = _krcg_load()  # pyright: ignore[reportUnknownVariableType]
         _krcg_loaded = True
     except ImportError as exc:
-        _logger.debug("krcg unavailable — card-section check skipped: %s", exc)
+        logger.debug("krcg unavailable — card-section check skipped: %s", exc)
         _krcg_loaded = False
     return _krcg_loaded
 
@@ -88,7 +88,7 @@ def krcg_card_search(card_name_or_id: str | int) -> Any:
     _seen_cards.add(card_name_or_id)
     _cards_loaded[card_name_or_id] = card
     if not card:
-        _logger.debug("Error searching for card '%s' in krcg", card_name_or_id)
+        logger.debug("Error searching for card '%s' in krcg", card_name_or_id)
 
     return card
 
@@ -114,7 +114,7 @@ def _ensure_i18n_loaded() -> None:
                 if name:
                     _i18n_lookup[name] = card.id
     except Exception as exc:
-        _logger.debug("Could not build i18n lookup from krcg data: %s", exc)
+        logger.debug("Could not build i18n lookup from krcg data: %s", exc)
 
 
 def canonicalize_card_name(name: str) -> str:
@@ -136,25 +136,25 @@ def canonicalize_card_name(name: str) -> str:
 
     card = krcg_card_search(name)
     if card:
-        return card.printed_name
+        return str(card.printed_name)
 
     m = _LEADING_THE_RE.match(name)
     if m:
         card = krcg_card_search(f"{m.group(1)}, The")
         if card:
-            return card.printed_name
+            return str(card.printed_name)
 
     if not name.endswith(", The"):
         card = krcg_card_search(f"{name}, The")
         if card:
-            return card.printed_name
+            return str(card.printed_name)
 
     _ensure_i18n_loaded()
     card_id = _i18n_lookup.get(name)
     if card_id is not None:
         card = krcg_card_search(card_id)
         if card:
-            return card.printed_name
+            return str(card.printed_name)
 
     return name
 
@@ -181,12 +181,12 @@ def canonical_crypt_name(name: str) -> str:
             if card_id is not None:
                 card = krcg_card_search(card_id)
         if card and card.kind == "Crypt":
-            return card.printed_name + (" (ADV)" if card.advanced else "")
+            return str(card.printed_name) + (" (ADV)" if card.advanced else "")
 
     return _strip_group_suffix(name)
 
 
-def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
+def get_all_vamp_variants(vamp_name: str) -> list[CryptCard]:
     """Return krcg data for all relevant grouping versions of a crypt card by name.
 
     Iterates the full card database to find every crypt card sharing the same
@@ -198,14 +198,6 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
     - ``"Xaviar (ADV)"`` → only ADV Xaviar versions
 
     Returns an empty list if the card is not found in krcg or is not a crypt card.
-
-    Each returned dict contains:
-    - ``capacity``    - blood capacity (int)
-    - ``disciplines`` - space-separated discipline string, e.g. ``"PRO ani cel"``
-    - ``title``       - title string or ``None``
-    - ``clan``        - primary clan name string
-    - ``grouping``    - group number (int) or ``"ANY"`` for group-independent cards
-    - ``path``        - V5 Sabbat path string or ``None``
     """
     _ensure_i18n_loaded()
     card = krcg_card_search(vamp_name)
@@ -216,7 +208,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
     target_printed_name: str = card.printed_name
 
     try:
-        result: list[Crypt_Card_Dict] = []
+        result: list[CryptCard] = []
         for candidate in _cards.cards():
             if candidate.kind != "Crypt":
                 continue
@@ -234,24 +226,27 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
             else:
                 try:
                     grouping = int(str(raw_group)[1:])  # "G3" → 3
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     continue
 
             disciplines = " ".join(candidate.disciplines) if candidate.disciplines else ""
             clan: str = candidate.clan or ""
             _path = getattr(candidate, "path", None)
-            entry: Crypt_Card_Dict = {
-                "capacity": candidate.capacity,
-                "disciplines": disciplines,
-                "title": str(candidate.title) if candidate.title else None,
-                "clan": clan,
-                "grouping": grouping,
-                "path": _path if _path else None,
-            }
-            result.append(entry)
+            result.append(
+                CryptCard(
+                    count=0,
+                    name=target_printed_name,
+                    capacity=candidate.capacity,
+                    disciplines=disciplines,
+                    title=str(candidate.title) if candidate.title else None,
+                    clan=clan,
+                    grouping=grouping,
+                    path=_path if _path else None,
+                )
+            )
 
         return result
-    except KeyError, AttributeError, TypeError, ValueError:
+    except (KeyError, AttributeError, TypeError, ValueError):
         return []
 
 

@@ -322,18 +322,18 @@ class TestGetAllVampVariants:
         result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1
         entry = result[0]
-        assert entry.get("capacity") == 4
-        assert "PRO" in (entry.get("disciplines") or "")
-        assert entry.get("clan") == "Gangrel"
-        assert entry.get("grouping") == 6
-        assert entry.get("path") is None
+        assert entry.capacity == 4
+        assert "PRO" in (entry.disciplines or "")
+        assert entry.clan == "Gangrel"
+        assert entry.grouping == 6
+        assert entry.path is None
 
     def test_returns_path_when_present(self):
         mock_card = _make_crypt_card(path="Power and the Inner Voice")
         self._setup(mock_card, search_name="Aaradhya, The Callous Tyrant")
         result = kh.get_all_vamp_variants("Aaradhya, The Callous Tyrant")
         assert len(result) == 1
-        assert result[0].get("path") == "Power and the Inner Voice"
+        assert result[0].path == "Power and the Inner Voice"
 
     def test_skips_adv_when_looking_up_base(self):
         """Iteration yields both base and ADV; only base is returned."""
@@ -353,7 +353,7 @@ class TestGetAllVampVariants:
         self._setup(mock_card)
         result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 1
-        assert result[0].get("grouping") == "ANY"
+        assert result[0].grouping == "ANY"
 
     def test_skips_cards_with_no_group(self):
         mock_card = _make_crypt_card(group=None)
@@ -364,13 +364,13 @@ class TestGetAllVampVariants:
         mock_card = _make_crypt_card(disciplines=[])
         self._setup(mock_card)
         result = kh.get_all_vamp_variants("Nathan Turner")
-        assert result[0].get("disciplines") == ""
+        assert result[0].disciplines == ""
 
     def test_card_with_no_clan(self):
         mock_card = _make_crypt_card(clan="")
         self._setup(mock_card)
         result = kh.get_all_vamp_variants("Nathan Turner")
-        assert result[0].get("clan") == ""
+        assert result[0].clan == ""
 
     def test_bad_group_format_is_skipped(self):
         """Group string that can't be parsed as int after stripping 'G' is skipped."""
@@ -390,7 +390,7 @@ class TestGetAllVampVariants:
         kh._cards = mock_cards_obj
         result = kh.get_all_vamp_variants("Nathan Turner")
         assert len(result) == 2
-        assert {r.get("grouping") for r in result} == {5, 6}
+        assert {r.grouping for r in result} == {5, 6}
 
     def test_cards_iterator_exception_propagates(self):
         """Unexpected exceptions (not KeyError/AttributeError/TypeError/ValueError) propagate."""
