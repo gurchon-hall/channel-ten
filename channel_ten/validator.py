@@ -23,7 +23,7 @@ Mandatory deck fields
                    its card counts, or deck.library_count != sum of section counts
 
 Player count
-  too_few_players : players_count is present but below MIN_PLAYERS (default 12, env-configurable)
+  too_few_players : players_count is present but below MIN_PLAYERS (default 10, env-configurable)
 
 Date coherence (requires a calendar_date from the VEKN event calendar)
   incoherent_date : date_start in the file does not match the official date
@@ -55,13 +55,18 @@ from channel_ten.models import (
 )
 
 logger = logging.getLogger(__name__)
-MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "12"))
+MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "10"))
 
 # Fields copied from krcg into a scraped CryptCard; count and name are
 # preserved from the scraped data and never overwritten.
-_ENRICH_FIELDS: frozenset[str] = frozenset(
-    {"capacity", "disciplines", "title", "clan", "grouping", "path"}
-)
+_ENRICH_FIELDS: frozenset[str] = frozenset({
+    "capacity",
+    "disciplines",
+    "title",
+    "clan",
+    "grouping",
+    "path",
+})
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers

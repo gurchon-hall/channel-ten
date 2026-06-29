@@ -12,6 +12,23 @@ starting from v0.1.0.
 
 ----
 
+Unreleased
+==========
+
+Added
+-----
+
+Changed
+-------
+- ``MIN_PLAYERS`` threshold default is changed to 10 after inquiring TWDA minimum
+  requirement: 10 players and no multi-deck. Second condition is  currently not
+  supported within the application but collateral should be minimum.
+
+Fixed
+-----
+
+----
+
 v0.7.0 — 2026-06-29
 ====================
 
