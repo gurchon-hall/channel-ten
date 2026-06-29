@@ -6,12 +6,14 @@ Bidirectional conversion between TWD text format and YAML:
 """
 
 import argparse
+import logging
+import sys
 from pathlib import Path
 
 from ruamel.yaml import YAML
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction, console
+from channel_ten.cli._common import SubParsersAction
 from channel_ten.models import Tournament
 from channel_ten.output import (
     tournament_to_txt,
@@ -20,6 +22,8 @@ from channel_ten.output import (
     write_tournament_yaml,
 )
 from channel_ten.parser import parse_twd_text
+
+logger = logging.getLogger(__name__)
 
 _YAML_EXTENSIONS = {".yaml", ".yml"}
 _TXT_EXTENSIONS = {".txt"}
@@ -54,17 +58,17 @@ def _parse_txt_to_yaml(args: argparse.Namespace) -> int:
     try:
         tournament = parse_twd_text(raw)
     except ValueError as exc:
-        console.print(f"[red]Parse error:[/red] {exc}")
+        logger.error("parse error: %s", exc)
         return 1
 
     if args.output_dir is None:
-        console.print(tournament_to_yaml_str(tournament))
+        sys.stdout.write(tournament_to_yaml_str(tournament))
     else:
         try:
             path = write_tournament_yaml(tournament, args.output_dir, overwrite=args.overwrite)
-            console.print(f"[green]✓[/green] Written to {path}")
+            logger.info("written to %s", path)
         except FileExistsError as exc:
-            console.print(f"[yellow]─[/yellow] {exc}")
+            logger.warning("%s", exc)
     return 0
 
 
@@ -77,17 +81,17 @@ def _parse_yaml_to_txt(args: argparse.Namespace) -> int:
         )
         tournament = Tournament.model_validate(data)
     except Exception as exc:
-        console.print(f"[red]Parse error:[/red] {exc}")
+        logger.error("parse error: %s", exc)
         return 1
 
     if args.output_dir is None:
-        console.print(tournament_to_txt(tournament))
+        sys.stdout.write(tournament_to_txt(tournament) + "\n")
     else:
         try:
             path = write_tournament_txt(tournament, args.output_dir, overwrite=args.overwrite)
-            console.print(f"[green]✓[/green] Written to {path}")
+            logger.info("written to %s", path)
         except FileExistsError as exc:
-            console.print(f"[yellow]─[/yellow] {exc}")
+            logger.warning("%s", exc)
     return 0
 
 
@@ -101,7 +105,5 @@ def run(args: argparse.Namespace) -> int:
     if ext in _YAML_EXTENSIONS:
         return _parse_yaml_to_txt(args)
 
-    console.print(
-        f"[red]Error:[/red] Unsupported file extension '{ext}'. Expected .txt, .yaml, or .yml."
-    )
+    logger.error("unsupported file extension %r — expected .txt, .yaml, or .yml", ext)
     return 1

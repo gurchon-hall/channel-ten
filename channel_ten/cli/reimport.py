@@ -24,7 +24,7 @@ from pathlib import Path
 import httpx
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction, console
+from channel_ten.cli._common import SubParsersAction
 from channel_ten.cli.scrape import RouteCounters, process_tournament, route_tournament
 from channel_ten.output.yaml import find_existing_yaml
 from channel_ten.parser import parse_twd_text
@@ -107,10 +107,10 @@ def run(args: argparse.Namespace) -> int:
         try:
             all_ids = list_twda_event_ids(client, token, delay=args.delay)
         except RuntimeError as exc:
-            console.print(f"[red]Error:[/red] {exc}")
+            logger.error("%s", exc)
             return 1
         except httpx.HTTPStatusError as exc:
-            console.print(f"[red]Error:[/red] could not list GiottoVerducci/TWD: {exc}")
+            logger.error("could not list GiottoVerducci/TWD: %s", exc)
             return 1
 
         # Step 2: keep only ids not already present anywhere in the base
@@ -119,29 +119,28 @@ def run(args: argparse.Namespace) -> int:
             for event_id in all_ids
             if find_existing_yaml(output_dir, f"{event_id}.yaml") is None
         ]
-        console.print(
-            f"{len(all_ids)} deck(s) in GiottoVerducci/TWD, "
-            f"[cyan]{len(new_ids)}[/cyan] not in base."
+        logger.info(
+            "%d deck(s) in GiottoVerducci/TWD, %d not in base.",
+            len(all_ids),
+            len(new_ids),
         )
 
         if args.limit is not None:
             new_ids = new_ids[: args.limit]
-            console.print(f"[dim]Limiting this run to {len(new_ids)} deck(s).[/dim]")
+            logger.info("Limiting this run to %d deck(s).", len(new_ids))
 
         # Step 3: fetch, parse, process and route each new deck
         for event_id in new_ids:
             raw = fetch_twda_txt(client, event_id, delay=args.delay)
             if raw is None:
-                console.print(
-                    f"[yellow]─[/yellow] {event_id}  [dim](not fetchable — skipped)[/dim]"
-                )
+                logger.warning("%s  (not fetchable — skipped)", event_id)
                 counters.skipped += 1
                 continue
 
             try:
                 tournament = parse_twd_text(raw)
             except (ValueError, Exception) as exc:
-                console.print(f"[red]✗[/red] {event_id}: parse error: {exc}")
+                logger.error("%s: parse error: %s", event_id, exc)
                 logger.debug("Stack trace:", exc_info=True)
                 counters.failed += 1
                 continue
@@ -153,7 +152,7 @@ def run(args: argparse.Namespace) -> int:
                 tournament = tournament.model_copy(update={"forum_post_url": tournament.event_url})
 
             if not tournament.event_id:
-                console.print(f"[yellow]─[/yellow] {event_id}  [dim](no event_id — skipped)[/dim]")
+                logger.warning("%s  (no event_id — skipped)", event_id)
                 counters.skipped += 1
                 continue
 
@@ -167,15 +166,16 @@ def run(args: argparse.Namespace) -> int:
                 counters=counters,
             )
 
-    console.rule()
-    console.print(
-        f"Done — [green]{counters.written} written[/green], "
-        f"[yellow]{counters.skipped} skipped[/yellow], "
-        f"[red]{counters.failed} failed[/red]"
+    logger.info(
+        "Done — %d written, %d skipped, %d failed",
+        counters.written,
+        counters.skipped,
+        counters.failed,
     )
     if counters.overwrite_skipped:
-        console.print(
-            f"[yellow]![/yellow] {counters.overwrite_skipped} deck(s) already existed "
-            f"and were not overwritten (use --overwrite to replace them)."
+        logger.warning(
+            "%d deck(s) already existed and were not overwritten "
+            "(use --overwrite to replace them).",
+            counters.overwrite_skipped,
         )
     return 1 if counters.failed else 0

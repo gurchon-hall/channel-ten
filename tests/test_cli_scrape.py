@@ -510,8 +510,7 @@ class TestScrapeInternalPaths:
                 fetch_event_winner=t.winner,  # avoids calendar_winner_missing=True
                 error_types=[],
             ):
-                with patch("channel_ten.cli.scrape.console"):
-                    ret = scrape_cmd.run(args)
+                ret = scrape_cmd.run(args)
             changes_dir = Path(tmpdir) / "changes_required"
             assert ret == 0
             assert changes_dir.exists()
@@ -528,9 +527,8 @@ class TestScrapeInternalPaths:
                 fetch_event_winner=t.winner,
                 error_types=[],
             ):
-                with patch("channel_ten.cli.scrape.console"):
-                    with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
-                        ret = scrape_cmd.run(args)
+                with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+                    ret = scrape_cmd.run(args)
         assert ret == 1
 
     def test_run_errors_write_exception_counts_as_failure(self):

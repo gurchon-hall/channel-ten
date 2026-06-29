@@ -9,7 +9,7 @@ from pathlib import Path
 from ruamel.yaml import YAML
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction, console
+from channel_ten.cli._common import SubParsersAction
 from channel_ten.models import Tournament
 from channel_ten.publisher import BatchPRResult, publish_all_as_single_pr
 
@@ -146,9 +146,8 @@ def run(args: argparse.Namespace) -> int:
 
     token = args.github_token or os.environ.get("GITHUB_TOKEN", "")
     if not token:
-        console.print(
-            "[red]Error:[/red] GitHub token required. "
-            "Set --github-token or the GITHUB_TOKEN environment variable."
+        logger.error(
+            "GitHub token required. Set --github-token or the GITHUB_TOKEN environment variable."
         )
         return 1
 
@@ -160,7 +159,7 @@ def run(args: argparse.Namespace) -> int:
     logger.debug("Found %d YAML file(s) in %s.", len(yaml_files), twds_dir)
 
     if not yaml_files:
-        console.print(f"[yellow]No YAML files found in {twds_dir}.[/yellow]")
+        logger.warning("No YAML files found in %s.", twds_dir)
         return 0
 
     tournaments: list[Tournament] = []
@@ -175,10 +174,10 @@ def run(args: argparse.Namespace) -> int:
         except Exception as exc:
             logger.warning("Skipping %s — could not load: %s", path, exc)
 
-    console.print(f"Loaded [green]{len(tournaments)}[/green] tournament(s) from {twds_dir}.")
+    logger.info("Loaded %d tournament(s) from %s.", len(tournaments), twds_dir)
 
     if not tournaments:
-        console.print("[yellow]Nothing to publish.[/yellow]")
+        logger.warning("Nothing to publish.")
         return 0
 
     # ── Filter out pre-2020 decks ──────────────────────────────────────────
@@ -191,11 +190,9 @@ def run(args: argparse.Namespace) -> int:
         ]
         excluded = before_count - len(tournaments)
         if excluded:
-            console.print(
-                f"[yellow]Excluded {excluded} tournament(s) with date prior to 2020.[/yellow]"
-            )
+            logger.info("Excluded %d tournament(s) with date prior to 2020.", excluded)
         if not tournaments:
-            console.print("[yellow]Nothing to publish after year filter.[/yellow]")
+            logger.warning("Nothing to publish after year filter.")
             return 0
 
     # ── Publish ────────────────────────────────────────────────────────────
@@ -205,12 +202,12 @@ def run(args: argparse.Namespace) -> int:
 
     dry_run: bool = getattr(args, "dry_run", False)
     if dry_run:
-        console.print(
-            f"[yellow]Dry-run:[/yellow] simulating publish of "
-            f"[cyan]{len(tournaments)}[/cyan] tournament(s) — no PR will be opened…"
+        logger.info(
+            "Dry-run: simulating publish of %d tournament(s) — no PR will be opened…",
+            len(tournaments),
         )
     else:
-        console.print(f"Publishing [cyan]{len(tournaments)}[/cyan] tournament(s) as a single PR…")
+        logger.info("Publishing %d tournament(s) as a single PR…", len(tournaments))
     logger.debug(
         "Submitting %d tournament(s) to publisher (dry_run=%s).",
         len(tournaments),
@@ -223,42 +220,37 @@ def run(args: argparse.Namespace) -> int:
         report_path = _write_publish_report(
             result, args.publish_dir, today, tournaments, timestamp=timestamp
         )
-        console.print(f"Report saved → [dim]{report_path}[/dim]")
+        logger.info("Report saved → %s", report_path)
         logger.debug("Publish report written to %s.", report_path)
     except Exception as exc:
         logger.warning("Could not write publish report: %s", exc)
 
     if result.skipped_all:
-        console.print(
-            "[yellow]All decks already exist in the target repo — nothing to do.[/yellow]"
-        )
+        logger.info("All decks already exist in the target repo — nothing to do.")
         return 0
 
     for event_id in result.skipped:
-        console.print(f"[yellow]─[/yellow] {event_id} already in target repo — skipped")
+        logger.info("%s already in target repo — skipped", event_id)
     for event_id, err in result.errors:
-        console.print(f"[red]✗[/red] {event_id}: {err}")
+        logger.error("%s: %s", event_id, err)
     for event_id in result.published:
-        console.print(f"[green]✓[/green] {event_id} committed to PR branch")
+        logger.info("%s committed to PR branch", event_id)
 
-    console.rule()
     if dry_run:
-        console.print(
-            f"[yellow]Dry-run complete[/yellow] — "
-            f"[green]{len(result.published)}[/green] deck(s) committed and branch deleted, "
-            f"no PR opened."
+        logger.info(
+            "Dry-run complete — %d deck(s) committed and branch deleted, no PR opened.",
+            len(result.published),
         )
     elif result.pr_url:
-        console.print(
-            f"[green]PR opened[/green] with [green]{len(result.published)}[/green]"
-            f" deck(s) → {result.pr_url}"
+        logger.info(
+            "PR opened with %d deck(s) → %s",
+            len(result.published),
+            result.pr_url,
         )
     else:
-        console.print(
-            f"[green]{len(result.published)}[/green] deck(s) committed but PR could not be opened "
-            f"(check logs for details)."
+        logger.warning(
+            "%d deck(s) committed but PR could not be opened (check logs for details).",
+            len(result.published),
         )
-    console.print(
-        f"[yellow]{len(result.skipped)} skipped[/yellow], [red]{len(result.errors)} failed[/red]"
-    )
+    logger.info("%d skipped, %d failed", len(result.skipped), len(result.errors))
     return 1 if result.errors else 0

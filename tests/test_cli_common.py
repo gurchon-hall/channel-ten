@@ -1,6 +1,5 @@
 """Tests for CLI entry point and shared utilities (_build_parser, main, _common)."""
 
-import io
 import logging
 import runpy
 from unittest.mock import patch
@@ -9,7 +8,6 @@ import pytest
 
 from channel_ten._logger import setup_logging
 from channel_ten.cli import _build_parser, main  # pyright: ignore[reportPrivateUsage]
-from channel_ten.cli._common import reconfigure_windows_stdio
 
 # ---------------------------------------------------------------------------
 # _build_parser / main
@@ -42,55 +40,12 @@ class TestMain:
     def test_main_dispatches_and_exits(self):
         with (
             patch("sys.argv", ["channel-ten", "scrape"]),
-            patch("channel_ten.cli.reconfigure_windows_stdio"),
             patch("channel_ten.cli.scrape.run", return_value=0) as mock_run,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
             mock_run.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# reconfigure_windows_stdio
-# ---------------------------------------------------------------------------
-
-
-class TestReconfigureWindowsStdio:
-    def test_noop_on_non_windows(self):
-        import sys as real_sys
-
-        original_stdout = real_sys.stdout
-        with patch("channel_ten.cli._common.sys") as mock_sys:
-            mock_sys.platform = "linux"
-            reconfigure_windows_stdio()
-        # Real sys.stdout must be untouched
-        assert real_sys.stdout is original_stdout
-
-    def test_reconfigures_on_windows(self):
-        fake_buffer = io.BytesIO(b"")
-        fake_stdout = io.TextIOWrapper(fake_buffer)
-        fake_stderr_buffer = io.BytesIO(b"")
-        fake_stderr = io.TextIOWrapper(fake_stderr_buffer)
-        with patch("channel_ten.cli._common.sys") as mock_sys:
-            mock_sys.platform = "win32"
-            mock_sys.stdout = fake_stdout
-            mock_sys.stderr = fake_stderr
-            reconfigure_windows_stdio()
-            # After reconfiguration, mock_sys.stdout should be a new TextIOWrapper
-            assert isinstance(mock_sys.stdout, io.TextIOWrapper)
-            assert mock_sys.stdout is not fake_stdout
-
-    def test_skips_when_no_buffer(self):
-        no_buffer_stdout = io.StringIO()
-        no_buffer_stderr = io.StringIO()
-        with patch("channel_ten.cli._common.sys") as mock_sys:
-            mock_sys.platform = "win32"
-            mock_sys.stdout = no_buffer_stdout
-            mock_sys.stderr = no_buffer_stderr
-            # Should not raise even without .buffer
-            reconfigure_windows_stdio()
-            assert isinstance(mock_sys.stdout, io.StringIO)
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +75,7 @@ class TestSetupLogging:
     def test_verbose_false(self):
         setup_logging(False)
         logger = logging.getLogger("channel_ten")
-        # In non-verbose mode, channel_ten logger should NOT be at DEBUG
-        assert logger.level != logging.DEBUG
+        assert logger.level == logging.INFO
 
     def test_verbose_true(self):
         setup_logging(True)

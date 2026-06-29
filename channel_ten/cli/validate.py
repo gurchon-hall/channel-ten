@@ -19,6 +19,8 @@ be recovered when the underlying issue (e.g. missing calendar results) is fixed.
 """
 
 import argparse
+import datetime
+import logging
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
@@ -27,7 +29,8 @@ from typing import Any, cast
 import httpx
 from ruamel.yaml import YAML
 
-from channel_ten.cli._common import SubParsersAction, console
+from channel_ten._logger import setup_logging
+from channel_ten.cli._common import SubParsersAction
 from channel_ten.cli.scrape import serialize_tournament
 from channel_ten.models import Deck, Tournament
 from channel_ten.scraper._forum import extract_twd_from_thread
@@ -39,6 +42,8 @@ from channel_ten.validator import (
     error_types,
     fix_card_sections,
 )
+
+logger = logging.getLogger(__name__)
 
 # Error dir is rechecked every time to see if errors have been fixed
 # and can be removed; so we skip only tournaments flagged as "changes_required"
@@ -98,12 +103,7 @@ def _filter_yaml_paths(twds_dir: Path, full_validation: bool) -> list[Path]:
     yaml_files: list[Path] = sorted(list(twds_dir.rglob("*.yaml")), reverse=True)
 
     if not full_validation:
-        skip_dirs_fast_validation = SKIP_DIRS.union({"errors"})
-        yaml_files = [
-            p
-            for p in yaml_files
-            if p.relative_to(twds_dir).parts[0] not in skip_dirs_fast_validation
-        ]
+        yaml_files = [p for p in yaml_files if p.relative_to(twds_dir).parts[0] not in SKIP_DIRS]
         yaml_files = yaml_files[:_FAST_VALIDATION_YAML_FILES_NUMBER_THRESHOLD]
 
     return yaml_files
@@ -148,6 +148,8 @@ def _check_and_update_winner(
 
 
 def run(args: argparse.Namespace) -> int:
+    setup_logging(args.verbose)
+
     yaml = YAML()
     full_validation: bool = args.full_validation
     twds_dir: Path = args.twds_dir
@@ -184,7 +186,7 @@ def run(args: argparse.Namespace) -> int:
                         data = fresh_data
                         dirty = True
                 except Exception as exc:
-                    console.print(f"  forum rescrape error for {path.name}: {exc}")
+                    logger.error("forum rescrape error for %s: %s", path.name, exc)
 
             # Step 2: check event calendar for canonical winner name + VEKN number
             event_url: str = data.get("event_url") or ""
@@ -193,7 +195,7 @@ def run(args: argparse.Namespace) -> int:
                     if _check_and_update_winner(client, data, event_url):
                         dirty = True
                 except Exception as exc:
-                    console.print(f"  calendar check error for {path.name}: {exc}")
+                    logger.error("calendar check error for %s: %s", path.name, exc)
 
             # Step 3: canonicalize names, enrich crypt cards and fix library sections
             # via krcg. Canonicalization runs first so enrichment/section lookups see
@@ -208,18 +210,11 @@ def run(args: argparse.Namespace) -> int:
                     data["deck"] = deck.model_dump(exclude_none=True)
                     dirty = True
                 if name_fixes:
-                    console.print(
-                        f"[cyan]⚙[/cyan] {path.name}  names canonicalized:\n"
-                        + "\n".join(name_fixes)
-                    )
+                    logger.debug("%s  names canonicalized:\n%s", path.name, "\n".join(name_fixes))
                 if crypt_fixes:
-                    console.print(
-                        f"[cyan]⚙[/cyan] {path.name}  crypt enriched:\n" + "\n".join(crypt_fixes)
-                    )
+                    logger.debug("%s  crypt enriched:\n%s", path.name, "\n".join(crypt_fixes))
                 if section_fixes:
-                    console.print(
-                        f"[cyan]⚙[/cyan] {path.name}  sections fixed:\n" + "\n".join(section_fixes)
-                    )
+                    logger.debug("%s  sections fixed:\n%s", path.name, "\n".join(section_fixes))
 
             # Step 4: fetch official event date for date-coherence check
             calendar_date = None
@@ -227,46 +222,71 @@ def run(args: argparse.Namespace) -> int:
                 try:
                     calendar_date = fetch_event_date(client, event_url)
                 except Exception as exc:
-                    console.print(f"  calendar date error for {path.name}: {exc}")
+                    logger.error("calendar date error for %s: %s", path.name, exc)
 
             # Step 5: full validation
             errors = error_types(data, calendar_date=calendar_date)
 
             if not errors:
-                if dirty and not dry_run:
-                    with open(path, "w", encoding="utf-8") as fh:
-                        yaml.dump(  # pyright: ignore[reportUnknownMemberType]
-                            _reorder_tournament_dict(data),
-                            fh,
-                        )
-                    console.print(f"[green]✓[/green] updated {path.name}")
-                    updated.append(path)
+                rel_parts = path.relative_to(twds_dir).parts
+                in_errors = len(rel_parts) > 1 and rel_parts[0] == "errors"
+                if in_errors:
+                    d = data.get("date_start")
+                    if isinstance(d, datetime.date):
+                        dest = twds_dir / f"{d.year:04d}" / f"{d.month:02d}" / path.name
+                    else:
+                        dest = twds_dir / path.name
+                else:
+                    dest = path
+                if dry_run:
+                    if in_errors:
+                        logger.info("[dry-run] would recover %s from errors/", path.name)
+                else:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if dirty:
+                        with open(dest, "w", encoding="utf-8") as fh:
+                            yaml.dump(  # pyright: ignore[reportUnknownMemberType]
+                                _reorder_tournament_dict(data),
+                                fh,
+                            )
+                        if in_errors:
+                            path.unlink()
+                    elif in_errors:
+                        shutil.move(str(path), str(dest))
+                    if dirty or in_errors:
+                        label = "recovered" if in_errors else "updated"
+                        logger.info("%s %s", label, path.name)
+                        updated.append(path)
                 continue
 
             # Step 6: move to errors/<first_error>/
             dest_dir = twds_dir / "errors" / errors[0]
             if dry_run:
-                console.print(
-                    f"[yellow]─[/yellow] [dry-run] would move {path.name} → "
-                    f"errors/{errors[0]}/  [dim]({', '.join(errors)})[/dim]"
+                logger.info(
+                    "[dry-run] would move %s → errors/%s/  (%s)",
+                    path.name,
+                    errors[0],
+                    ", ".join(errors),
                 )
             else:
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 dest = dest_dir / path.name
                 shutil.move(str(path), str(dest))
-                console.print(
-                    f"[red]✗[/red] {path.name} → errors/{errors[0]}/"
-                    f"  [dim]({', '.join(errors)})[/dim]"
+                logger.warning(
+                    "%s → errors/%s/  (%s)",
+                    path.name,
+                    errors[0],
+                    ", ".join(errors),
                 )
             moved.append(path)
 
     if not moved and not updated:
-        console.print("[green]All published files passed validation.[/green]")
+        logger.info("All published files passed validation.")
     else:
         label = "would be moved" if dry_run else "moved"
         if moved:
-            console.print(f"\n{len(moved)} file(s) {label}.")
+            logger.info("%d file(s) %s.", len(moved), label)
         if updated:
-            console.print(f"{len(updated)} file(s) updated in place.")
+            logger.info("%d file(s) updated in place.", len(updated))
 
     return 0

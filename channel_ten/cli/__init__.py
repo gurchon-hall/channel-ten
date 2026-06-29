@@ -8,7 +8,7 @@ import argparse
 import sys
 
 from channel_ten.cli import parse, publish, reimport, scrape, validate
-from channel_ten.cli._common import SubParsersAction, reconfigure_windows_stdio
+from channel_ten.cli._common import SubParsersAction
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -26,7 +26,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    reconfigure_windows_stdio()
     parser = _build_parser()
     args = parser.parse_args()
     sys.exit(args.func(args))

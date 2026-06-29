@@ -20,12 +20,34 @@ Added
 
 Changed
 -------
+- All CLI user-facing output migrated from ``rich.Console.print()`` to the
+  standard ``logging`` hierarchy.  Progress, status, and error messages now
+  flow through ``logger.*`` calls in each subcommand module.
+- ``setup_logging()`` default level for ``channel_ten`` raised from ``ERROR``
+  to ``INFO``; progress messages (written, skipped, failed, PR URL, …) are
+  now visible by default without ``--verbose``.
+- ``--verbose`` continues to enable ``DEBUG`` logging; card-enrichment detail
+  (crypt enriched, sections fixed, names canonicalized) is demoted to
+  ``DEBUG`` so it does not appear in normal runs.
+- ``reconfigure_windows_stdio()`` removed from ``cli/_common.py`` and the
+  ``main()`` entry point — it existed solely to work around a Rich
+  ``Console`` Windows encoding issue that no longer applies.
+- ``validate`` subcommand now correctly calls ``setup_logging(args.verbose)``
+  at the start of ``run()``; the ``--verbose`` flag was previously registered
+  but never connected to logging configuration.
 - ``MIN_PLAYERS`` threshold default is changed to 10 after inquiring TWDA minimum
   requirement: 10 players and no multi-deck. Second condition is  currently not
   supported within the application but collateral should be minimum.
 
 Fixed
 -----
+
+- ``validate`` command now includes ``errors/`` when scanning YAML files, so
+  previously failing tournaments are re-checked on every run (not only with
+  ``--full-validation``).
+- ``validate`` command now moves recovered tournaments (files in ``errors/``
+  that pass all checks) back to their canonical ``twds/YYYY/MM/`` location
+  instead of leaving them stranded in the error directory.
 
 ----
 

@@ -12,8 +12,8 @@ from rich.logging import RichHandler
 def setup_logging(verbose: bool) -> None:
     """Configure root logging with a Rich handler.
 
-    Sets the root level to ERROR; enables DEBUG for the ``channel_ten``
-    package when *verbose* is True.
+    Sets the root level to ERROR; sets ``channel_ten`` to INFO by default
+    and DEBUG when *verbose* is True.
     """
     handler = RichHandler(rich_tracebacks=True, show_path=False)
     logging.basicConfig(
@@ -21,5 +21,5 @@ def setup_logging(verbose: bool) -> None:
         format="%(message)s",
         handlers=[handler],
     )
-    if verbose:
-        logging.getLogger("channel_ten").setLevel(logging.DEBUG)
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.getLogger("channel_ten").setLevel(level)

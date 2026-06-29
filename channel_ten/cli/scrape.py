@@ -22,7 +22,7 @@ from typing import Any
 import httpx
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction, console
+from channel_ten.cli._common import SubParsersAction
 from channel_ten.models import Tournament
 from channel_ten.output import write_tournament_yaml
 from channel_ten.output.yaml import tournament_to_yaml_str
@@ -142,17 +142,17 @@ def _lookup_player(
         return tournament
 
     if result is None:
-        console.print(
-            f"[yellow]?[/yellow] {tournament.yaml_filename}  winner not found in VEKN: {winner!r}"
-        )
+        logger.warning("%s  winner not found in VEKN: %r", tournament.yaml_filename, winner)
         return tournament
 
     canonical_name, vekn_number = result
     if canonical_name != winner:
-        console.print(
-            f"[yellow]~[/yellow] {tournament.yaml_filename}"
-            f"  winner coerced: {winner!r}"
-            f" → {canonical_name!r}  (VEKN {vekn_number})"
+        logger.info(
+            "%s  winner coerced: %r → %r  (VEKN %s)",
+            tournament.yaml_filename,
+            winner,
+            canonical_name,
+            vekn_number,
         )
     return tournament.model_copy(update={"winner": canonical_name, "vekn_number": vekn_number})
 
@@ -166,14 +166,9 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
     section_fixes = fix_card_sections(tournament.deck)
 
     if crypt_fixes:
-        console.print(
-            f"[cyan]⚙[/cyan] {tournament.yaml_filename}  crypt enriched:\n" + "\n".join(crypt_fixes)
-        )
+        logger.debug("%s  crypt enriched:\n%s", tournament.yaml_filename, "\n".join(crypt_fixes))
     if section_fixes:
-        console.print(
-            f"[cyan]⚙[/cyan] {tournament.yaml_filename}  sections fixed:\n"
-            + "\n".join(section_fixes)
-        )
+        logger.debug("%s  sections fixed:\n%s", tournament.yaml_filename, "\n".join(section_fixes))
 
     return tournament
 
@@ -276,13 +271,15 @@ def route_tournament(
         path = error_dir / tournament.yaml_filename
         try:
             path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
-            console.print(
-                f"[red]⚠[/red] {path.name}  {tournament.name}"
-                f"  [dim](errors: {', '.join(errors)})[/dim]"
+            logger.warning(
+                "%s  %s  (errors: %s)",
+                path.name,
+                tournament.name,
+                ", ".join(errors),
             )
             counters.written += 1
         except Exception as exc:
-            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.error("%s: %s", tournament.event_id, exc)
             logger.debug("Stack trace:", exc_info=True)
             counters.failed += 1
     elif icon == ICON_MERGED:
@@ -290,12 +287,10 @@ def route_tournament(
         path = changes_required_dir / tournament.yaml_filename
         try:
             path.write_text(tournament_to_yaml_str(tournament), encoding="utf-8")
-            console.print(
-                f"[yellow]⚠[/yellow] {path.name}  {tournament.name}  [dim](changes required)[/dim]"
-            )
+            logger.info("%s  %s  (changes required)", path.name, tournament.name)
             counters.written += 1
         except Exception as exc:
-            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.error("%s: %s", tournament.event_id, exc)
             logger.debug("Stack trace:", exc_info=True)
             counters.failed += 1
     else:
@@ -305,19 +300,19 @@ def route_tournament(
                 output_dir,
                 overwrite=overwrite,
             )
-            console.print(f"[green]✓[/green] {path.name}  {tournament.name}")
+            logger.info("%s  %s", path.name, tournament.name)
             counters.written += 1
 
             stale = changes_required_dir / tournament.yaml_filename
             if stale.exists():
                 stale.unlink()
-                console.print(f"[dim]  removed stale changes_required/{stale.name}[/dim]")
+                logger.info("removed stale changes_required/%s", stale.name)
         except FileExistsError as exc:
             logger.debug("%s", exc)
             counters.skipped += 1
             counters.overwrite_skipped += 1
         except Exception as exc:
-            console.print(f"[red]✗[/red] {tournament.event_id}: {exc}")
+            logger.error("%s: %s", tournament.event_id, exc)
             logger.debug("Stack trace:", exc_info=True)
             counters.failed += 1
 
@@ -398,9 +393,7 @@ def run(args: argparse.Namespace) -> int:
             delay=args.delay,
         ):
             if not tournament.event_id:
-                console.print(
-                    f"[yellow]─[/yellow] {tournament.name!r}  [dim](no event_id — skipped)[/dim]"
-                )
+                logger.warning("%r  (no event_id — skipped)", tournament.name)
                 counters.skipped += 1
                 continue
 
@@ -417,15 +410,16 @@ def run(args: argparse.Namespace) -> int:
                 counters=counters,
             )
 
-    console.rule()
-    console.print(
-        f"Done — [green]{counters.written} written[/green], "
-        f"[yellow]{counters.skipped} skipped[/yellow], "
-        f"[red]{counters.failed} failed[/red]"
+    logger.info(
+        "Done — %d written, %d skipped, %d failed",
+        counters.written,
+        counters.skipped,
+        counters.failed,
     )
     if counters.overwrite_skipped:
-        console.print(
-            f"[yellow]![/yellow] {counters.overwrite_skipped} deck(s) already existed "
-            f"and were not overwritten (use --overwrite to replace them)."
+        logger.warning(
+            "%d deck(s) already existed and were not overwritten "
+            "(use --overwrite to replace them).",
+            counters.overwrite_skipped,
         )
     return 1 if counters.failed else 0
