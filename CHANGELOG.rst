@@ -18,6 +18,10 @@ Unreleased
 Added
 -----
 
+- ``AGENTS.md`` added at the repository root: guidelines for automated agents
+  (CI, coding assistants, PR review bots) covering repository map, code style,
+  testing, and workflow conventions.
+
 Changed
 -------
 - All CLI user-facing output migrated from ``rich.Console.print()`` to the
