@@ -13,15 +13,22 @@ repos:
         name: ruff format
 
   # ---------------------------------------------------------------------------
-  # Local hooks — mypy, pytest, CLI smoke tests
-  # Cross-platform: uses python -m for tools, wrapper script for CLI
-  # Requires: pip install -e ".[dev]"
+  # Local hooks — ty, pytest, CLI smoke tests
+  # Requires: uv sync --group dev
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
+      - id: ty
+        name: ty type check
+        entry: uv run ty check channel_ten
+        language: system
+        pass_filenames: false
+        always_run: true
+        types_or: [python, pyi]
+
       - id: pytest
         name: pytest
-        entry: python -m pytest
+        entry: uv run pytest
         language: system
         pass_filenames: false
         always_run: true
@@ -30,7 +37,7 @@ repos:
       # CLI smoke tests — verify each subcommand loads and parses args cleanly
       - id: cli-smoke-scrape
         name: "cli smoke: scrape --help"
-        entry: python -m channel_ten.cli
+        entry: uv run python -m channel_ten.cli
         args: [scrape, --help]
         language: system
         pass_filenames: false
@@ -38,7 +45,7 @@ repos:
 
       - id: cli-smoke-import
         name: "cli smoke: import --help"
-        entry: python -m channel_ten.cli
+        entry: uv run python -m channel_ten.cli
         args: [import, --help]
         language: system
         pass_filenames: false
@@ -46,7 +53,7 @@ repos:
 
       - id: cli-smoke-parse
         name: "cli smoke: parse --help"
-        entry: python -m channel_ten.cli
+        entry: uv run python -m channel_ten.cli
         args: [parse, --help]
         language: system
         pass_filenames: false
@@ -54,7 +61,7 @@ repos:
 
       - id: cli-smoke-publish
         name: "cli smoke: publish --help"
-        entry: python -m channel_ten.cli
+        entry: uv run python -m channel_ten.cli
         args: [publish, --help]
         language: system
         pass_filenames: false
@@ -62,7 +69,7 @@ repos:
 
       - id: cli-smoke-validate
         name: "cli smoke: validate --help"
-        entry: python -m channel_ten.cli
+        entry: uv run python -m channel_ten.cli
         args: [validate, --help]
         language: system
         pass_filenames: false

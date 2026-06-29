@@ -56,18 +56,17 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           path: eternal-vigilance
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
         with:
+          enable-cache: true
           python-version: "3.14"
-          allow-prereleases: true   # required until 3.14 reaches final release
-          cache: "pip"
 
       - name: Set UTF-8 encoding (required on Windows runners)
         run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: pip install -e "./channel-ten[dev]"
+        run: uv sync --group dev --project ./channel-ten
 
       - name: Build scrape command
         id: build_cmd

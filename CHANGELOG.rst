@@ -12,8 +12,11 @@ starting from v0.1.0.
 
 ----
 
-Unreleased
-==========
+v0.8.0 — 2026-06-29
+====================
+
+Toolchain migration: pip/setuptools → uv, mypy → ty, and logging-pipeline
+improvements.
 
 Added
 -----
@@ -21,9 +24,23 @@ Added
 - ``AGENTS.md`` added at the repository root: guidelines for automated agents
   (CI, coding assistants, PR review bots) covering repository map, code style,
   testing, and workflow conventions.
+- ``uv.lock`` lockfile added; all dependency resolutions are now reproducible.
 
 Changed
 -------
+
+- Build backend switched from **setuptools** to **hatchling**; the
+  ``[tool.setuptools.packages.find]`` section is removed (hatchling
+  auto-discovers ``channel_ten``).
+- Dev dependencies moved from ``[project.optional-dependencies]`` to
+  ``[dependency-groups]`` (PEP 735) so they are not published with the package.
+- Package manager migrated from **pip** to **uv** (``python-preference =
+  "only-managed"`` in ``[tool.uv]``).  All five CI workflows updated to use
+  ``astral-sh/setup-uv@v4`` and ``uv sync --group dev``.
+- Type checker migrated from **mypy** to **ty**; ``[tool.mypy]`` configuration
+  removed; ``[tool.ty]`` section added; ty pre-commit hook added before pytest.
+- Pre-commit local hooks updated to invoke tools via ``uv run`` instead of
+  ``python -m``.
 - All CLI user-facing output migrated from ``rich.Console.print()`` to the
   standard ``logging`` hierarchy.  Progress, status, and error messages now
   flow through ``logger.*`` calls in each subcommand module.

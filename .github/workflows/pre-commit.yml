@@ -20,18 +20,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
         with:
+          enable-cache: true
           python-version: "3.14"
-          allow-prereleases: true
-          cache: "pip"
 
       - name: Set UTF-8 encoding
         run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --group dev
 
       - name: Run pre-commit hooks
-        run: pre-commit run --all-files
+        run: uv run pre-commit run --all-files
