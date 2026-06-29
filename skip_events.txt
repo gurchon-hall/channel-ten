@@ -1,1 +1,20 @@
-11023 # Finnish Nationals 2023 - Decklist for every deck playing the finals, scraper not able to retrieve more than one decklist per forum post
+11023 # Finnish Nationals 2023 - [Multi decklist in post] - Only TWD is expected
+11955 # Hungarian Nationals 2024 - [Multi decklist in post] - Only TWD is expected
+10234 # European Championship 2022 - [Multi decklist in post] - Only TWD is expected
+11282 # Hungarian League 2024 - [Multi decklist in post] - Only TWD is expected
+11369 # Hungarian League 2024 - [Multi decklist in post] - Only TWD is expected
+11423 # Hungarian League 2024 - [Multi decklist in post] - Only TWD is expected
+11429 # Hungarian League 2024 - [Multi decklist in post] - Only TWD is expected
+11674 # Hungarian Tournament 2024 - [Multi decklist in post] - Only TWD is expected
+11757 # Hungarian Tournament 2024 - [Multi decklist in post] - Only TWD is expected
+11855 # Hungarian Tournament 2024 - [Multi decklist in post] - Only TWD is expected
+11920 # Hungarian Tournament 2024 - [Multi decklist in post] - Only TWD is expected
+12049 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12050 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12051 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12052 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12053 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12054 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12436 # Hungarian Qualifier 2025 - [Multi decklist in post] - Only TWD is expected
+12102 # Hungarian Tournament 2025 - [Multi decklist in post] - Only TWD is expected
+12139 # Hungarian Tournament 2025 - [Multi decklist in post] - Only TWD is expected
