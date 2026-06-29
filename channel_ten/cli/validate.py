@@ -38,6 +38,7 @@ from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
 from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
 from channel_ten.validator import (
     canonicalize_card_names,
+    enrich_card_ids,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
@@ -245,7 +246,8 @@ def run(args: argparse.Namespace) -> int:
                 name_fixes = canonicalize_card_names(deck)
                 crypt_fixes = enrich_crypt_cards(deck)
                 section_fixes = fix_card_sections(deck)
-                if name_fixes or crypt_fixes or section_fixes:
+                id_fixes = enrich_card_ids(deck)
+                if name_fixes or crypt_fixes or section_fixes or id_fixes:
                     data["deck"] = deck.model_dump(exclude_none=True)
                     dirty = True
                 if name_fixes:
@@ -254,6 +256,8 @@ def run(args: argparse.Namespace) -> int:
                     logger.debug("%s  crypt enriched:\n%s", path.name, "\n".join(crypt_fixes))
                 if section_fixes:
                     logger.debug("%s  sections fixed:\n%s", path.name, "\n".join(section_fixes))
+                if id_fixes:
+                    logger.debug("%s  card ids enriched:\n%s", path.name, "\n".join(id_fixes))
 
             # Step 4: fetch official event date for date-coherence check
             calendar_date = None

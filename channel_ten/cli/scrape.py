@@ -37,6 +37,7 @@ from channel_ten.scraper import (
     scrape_forum,
 )
 from channel_ten.validator import (
+    enrich_card_ids,
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
@@ -164,11 +165,14 @@ def _enrich_with_krcg(tournament: Tournament) -> Tournament:
 
     crypt_fixes = enrich_crypt_cards(tournament.deck)
     section_fixes = fix_card_sections(tournament.deck)
+    id_fixes = enrich_card_ids(tournament.deck)
 
     if crypt_fixes:
         logger.debug("%s  crypt enriched:\n%s", tournament.yaml_filename, "\n".join(crypt_fixes))
     if section_fixes:
         logger.debug("%s  sections fixed:\n%s", tournament.yaml_filename, "\n".join(section_fixes))
+    if id_fixes:
+        logger.debug("%s  card ids enriched:\n%s", tournament.yaml_filename, "\n".join(id_fixes))
 
     return tournament
 

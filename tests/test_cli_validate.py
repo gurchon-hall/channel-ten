@@ -111,6 +111,7 @@ def _patch_validate(**overrides: Any):
         "canonicalize_card_names": [],
         "enrich_crypt_cards": [],
         "fix_card_sections": [],
+        "enrich_card_ids": [],
         "error_types": [],
     }
     defaults.update(overrides)
@@ -391,6 +392,12 @@ class TestValidateRunScraperInteraction:
         with _patch_validate() as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
         mocks["fix_card_sections"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_enrich_card_ids_called(self, tmp_path: Path):
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["enrich_card_ids"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
     def test_fetch_event_date_called_with_event_url(self, tmp_path: Path):
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())

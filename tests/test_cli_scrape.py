@@ -53,6 +53,7 @@ def _patch_pipeline(**overrides: Any):
         "fetch_player": None,
         "enrich_crypt_cards": [],
         "fix_card_sections": [],
+        "enrich_card_ids": [],
         "error_types": [],
     }
     patches.update(overrides)
@@ -183,6 +184,14 @@ class TestScrapeRun:
                 scrape_cmd.run(args)
             _, kwargs = mocks["scrape_forum"].call_args
             assert kwargs["max_pages"] is None
+
+    def test_run_enriches_card_ids(self):
+        t = make_tournament()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = _scrape_namespace(output_dir=Path(tmpdir))
+            with _patch_pipeline(scrape_forum=iter([(t, None)])) as mocks:
+                scrape_cmd.run(args)
+            mocks["enrich_card_ids"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
     def test_run_enriches_winner_with_vekn_number(self):
         """Player lookup resolves; vekn_number ends up in the written file."""

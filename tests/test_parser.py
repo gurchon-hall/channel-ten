@@ -264,6 +264,58 @@ class TestCryptCompactFormat:
 
 
 # ---------------------------------------------------------------------------
+# ANY-group cards (Anarch Convert, New Blood)
+# ---------------------------------------------------------------------------
+
+EXAMPLE_ANY_GROUP = """\
+Bleeding in Wroclaw
+Wroclaw, Poland
+July 22nd 2023
+3R+F
+11 players
+Pawel Szymanski
+https://www.vekn.net/event-calendar/event/11111
+
+Crypt (6 cards, min=1, max=1, avg=1)
+--------------------------------------
+4x Anarch Convert   1                    Caitiff:ANY
+2x Nathan Turner    4 PRO ani            Gangrel:6
+
+Library (1 cards)
+Master (1)
+1x Blood Doll
+"""
+
+
+class TestAnyGroupParsing:
+    def test_any_group_card_parsed(self):
+        t = parse_twd_text(EXAMPLE_ANY_GROUP)
+        assert t.deck and len(t.deck.crypt) == 2
+
+    def test_any_grouping_is_string(self):
+        t = parse_twd_text(EXAMPLE_ANY_GROUP)
+        assert t.deck
+        convert = t.deck.crypt[0]
+        assert convert.name == "Anarch Convert"
+        assert convert.grouping == "ANY"
+
+    def test_any_grouping_lowercase_accepted(self):
+        example = EXAMPLE_ANY_GROUP.replace("Caitiff:ANY", "Caitiff:any")
+        t = parse_twd_text(example)
+        assert t.deck and t.deck.crypt[0].grouping == "ANY"
+
+    def test_crypt_count_includes_any_group_cards(self):
+        t = parse_twd_text(EXAMPLE_ANY_GROUP)
+        assert t.deck and t.deck.crypt_count == 6
+
+    def test_regular_card_in_mixed_crypt(self):
+        t = parse_twd_text(EXAMPLE_ANY_GROUP)
+        assert t.deck
+        nathan = t.deck.crypt[1]
+        assert nathan.grouping == 6
+
+
+# ---------------------------------------------------------------------------
 # Multi-word clan names (e.g. "Brujah antitribu")
 # ---------------------------------------------------------------------------
 

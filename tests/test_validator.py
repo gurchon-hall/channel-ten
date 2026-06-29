@@ -90,7 +90,10 @@ def _tournament(**kwargs: Any) -> dict[str, Any]:
 
 class TestMandatoryFields:
     def test_valid_returns_no_errors(self):
-        assert error_types(_tournament()) == []
+        deck = _deck()
+        deck.crypt[0].id = 1
+        deck.library_sections[0].cards[0].id = 2
+        assert error_types(_tournament(deck=deck)) == []
 
     def test_missing_name(self):
         assert "illegal_header" in error_types(_tournament(name=""))
@@ -1035,6 +1038,11 @@ class TestMissingCardIdErrors:
         assert deck.crypt[0].id is None
         with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
             assert missing_card_id_errors(deck) == ["missing_card_id"]
+
+    def test_error_types_reports_missing_card_id(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert "missing_card_id" in error_types(_tournament(deck=deck))
 
     def test_returns_error_when_library_card_has_no_id(self):
         deck = _deck()

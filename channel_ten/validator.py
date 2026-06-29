@@ -412,6 +412,16 @@ def error_types(data: dict[str, Any], calendar_date: date | None = None) -> list
     if illegal_library:
         errors.append("illegal_library")
 
+    # --- Card IDs (requires krcg to be loaded) ---
+    if not deck_raw:
+        deck_raw = {}
+    try:
+        deck = Deck.model_validate(deck_raw)
+    except Exception:
+        deck = None
+    if deck is not None and missing_card_id_errors(deck):
+        errors.append("missing_card_id")
+
     # --- Player count floor ---
     players_count: int = data.get("players_count") or 0
     if 0 < players_count < MIN_PLAYERS:

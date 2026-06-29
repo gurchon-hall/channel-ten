@@ -23,8 +23,8 @@ class ParserRegex:
         r"^(?P<count>\d+)x\s+"
         r"(?P<name>.+?)\s+"
         r"(?P<capacity>\d{1,2})"
-        r"(?P<disciplines>(?:\s+[a-zA-Z]{3})+)\s+"
-        r"(?P<clan>[^:]+):(?P<grouping>\d+)\s*$"
+        r"(?P<disciplines>(?:\s+[a-zA-Z]{3})*)\s+"
+        r"(?P<clan>[^:]+):(?P<grouping>\d+|[Aa][Nn][Yy])\s*$"
     )
     LIBRARY_LINE_RE = re.compile(r"^(?P<count>\d+)x\s+(?P<name>.+)$")
     SECTION_HEADER_RE = re.compile(r"^(?P<name>[A-Za-z /,()]+)\s*\((?P<count>\d+).*\)$")
@@ -221,13 +221,15 @@ class CardParser:
         name = ParserRegex.CRYPT_GROUP_SUFFIX_RE.sub(
             lambda mm: " (ADV)" if mm.group("adv") else "", m.group("name").strip()
         ).strip()
+        raw_grouping = m.group("grouping")
+        grouping: int | str = "ANY" if raw_grouping.upper() == "ANY" else int(raw_grouping)
         return CryptCard(
             count=int(m.group("count")),
             name=name,
             capacity=int(m.group("capacity")),
             disciplines=m.group("disciplines").strip(),
             clan=clan,
-            grouping=int(m.group("grouping")),
+            grouping=grouping,
             title=title,
             comment=comment,
         )
