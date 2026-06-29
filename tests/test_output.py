@@ -559,6 +559,37 @@ class TestTournamentToYamlStr:
         assert "event_id: 9999" in result
         assert "event_id: '9999'" not in result
 
+    def test_includes_crypt_path_in_yaml(self):
+        deck = Deck(
+            crypt=[
+                CryptCard(
+                    count=1,
+                    name="Aaradhya, The Callous Tyrant",
+                    capacity=10,
+                    disciplines="ANI DOM FOR POT PRE",
+                    title="Cardinal",
+                    clan="Ventrue",
+                    grouping=6,
+                    path="Power and the Inner Voice",
+                )
+            ],
+            crypt_count=1,
+            crypt_min=10,
+            crypt_max=10,
+            crypt_avg=10.0,
+            library_sections=[
+                LibrarySection(
+                    name="Master",
+                    count=1,
+                    cards=[LibraryCard(count=1, name="Blood Doll")],
+                )
+            ],
+            library_count=1,
+        )
+        t = make_tournament(deck=deck)
+        result = tournament_to_yaml_str(t)
+        assert "path: Power and the Inner Voice" in result
+
 
 # ---------------------------------------------------------------------------
 # write_tournament_yaml

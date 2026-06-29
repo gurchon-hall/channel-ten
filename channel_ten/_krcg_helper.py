@@ -6,14 +6,31 @@ from channel_ten.models import Crypt_Card_Dict
 
 _logger = logging.getLogger(__name__)
 
-
-try:
-    from krcg.config import TYPE_ORDER as TYPE_ORDER
-except ImportError:
-    TYPE_ORDER: list[str] = []  # type: ignore[no-redef]
+# Previously imported from krcg.config; removed in krcg 5.0.
+TYPE_ORDER: list[str] = [
+    "Master",
+    "Conviction",
+    "Action",
+    "Action/Combat",
+    "Action/Reaction",
+    "Ally",
+    "Equipment",
+    "Political Action",
+    "Retainer",
+    "Power",
+    "Action Modifier",
+    "Action Modifier/Combat",
+    "Action Modifier/Reaction",
+    "Reaction",
+    "Combat",
+    "Combat/Reaction",
+    "Event",
+]
 
 _krcg_loaded: bool | None = None
 _i18n_ensured: bool = False
+_cards: Any = None  # krcg.collections.CardDict once loaded
+_i18n_lookup: dict[str, int] = {}  # localized_name → card.id, built lazily
 _seen_cards: set[str | int] = set()
 _cards_loaded: dict[str | int, Any] = {}
 
@@ -32,21 +49,18 @@ def _strip_group_suffix(name: str) -> str:
     return _GROUP_SUFFIX_RE.sub(lambda m: " (ADV)" if m.group("adv") else "", name).strip()
 
 
-# A known Spanish card name used only to probe whether translated-name aliases
-# are present in the loaded krcg data ("Dreams of the Sphinx").
-_I18N_PROBE_NAME = "Sueños de la Esfinge"
-
-
 def is_krcg_loaded() -> bool:
     """Check if the KRCG module is available."""
-    global _krcg_loaded
+    global _krcg_loaded, _cards
     if _krcg_loaded is not None:
         return _krcg_loaded
 
     try:
-        from krcg import vtes as _kv  # noqa: PLC0415
+        from krcg import (
+            load as _krcg_load,  # pyright: ignore[reportAttributeAccessIssue, reportUnknownVariableType] # noqa: PLC0415
+        )
 
-        _kv.VTES.load()
+        _cards = _krcg_load()  # pyright: ignore[reportUnknownVariableType]
         _krcg_loaded = True
     except ImportError as exc:
         _logger.debug("krcg unavailable — card-section check skipped: %s", exc)
@@ -55,7 +69,7 @@ def is_krcg_loaded() -> bool:
 
 
 def krcg_card_search(card_name_or_id: str | int) -> Any:
-    """Search for a card by name in KRCG's VTES database.
+    """Search for a card by name or id in krcg's card database.
 
     Returns a krcg ``Card`` object, or ``None`` when the card is not found.
     Typed as ``Any`` because krcg is an optional dependency whose ``Card``
@@ -64,60 +78,55 @@ def krcg_card_search(card_name_or_id: str | int) -> Any:
     if not is_krcg_loaded():
         return None
 
-    from krcg import vtes as _kv  # noqa: PLC0415
-
     if card_name_or_id in _seen_cards:
         return _cards_loaded.get(card_name_or_id)
 
-    card = _kv.VTES.get(card_name_or_id, None)
+    try:
+        card = _cards[card_name_or_id]
+    except KeyError:
+        card = None
     _seen_cards.add(card_name_or_id)
     _cards_loaded[card_name_or_id] = card
     if not card:
-        _logger.debug("Error searching for card '%s' in KRCG", card_name_or_id)
+        _logger.debug("Error searching for card '%s' in krcg", card_name_or_id)
 
     return card
 
 
 def _ensure_i18n_loaded() -> None:
-    """Best-effort: ensure translated card-name aliases are available.
+    """Build a localized-name → card.id lookup from the loaded krcg card data.
 
-    krcg registers every translated card name (es-ES, fr-FR, …) as an alias, so a
-    plain lookup resolves a localized name to its English card. The KRCG static
-    data loaded by ``VTES.load()`` includes translations for krcg>=4.0; if it does
-    not (older builds), fall back to ``load_from_vekn()`` which always loads them.
-
-    Failures are swallowed — English-only resolution still works and any name that
-    stays unresolved is flagged for manual review downstream. Runs at most once.
+    In krcg 5.0, translated names (es-ES, fr-FR, …) are stored in each card's
+    ``i18n`` field but are not indexed in ``CardDict`` for direct lookup. This
+    function iterates every card once and builds ``_i18n_lookup`` so that
+    ``canonicalize_card_name`` can still resolve a localized name to its English
+    card. Runs at most once; failures are swallowed.
     """
-    global _i18n_ensured
+    global _i18n_ensured, _i18n_lookup
     if _i18n_ensured or not is_krcg_loaded():
         return
     _i18n_ensured = True
 
-    from krcg import vtes as _kv  # noqa: PLC0415
-
-    if _kv.VTES.get(_I18N_PROBE_NAME, None):
-        return  # translations already present in the static data
-
     try:
-        _kv.VTES.load_from_vekn()
-        # Re-querying is required: cached misses from the English-only data are stale.
-        _seen_cards.clear()
-        _cards_loaded.clear()
+        for card in _cards.cards():
+            for _, translation in card.i18n.items():
+                name = getattr(translation, "name", None)
+                if name:
+                    _i18n_lookup[name] = card.id
     except Exception as exc:
-        _logger.debug("Could not load krcg i18n data from vekn.net: %s", exc)
+        _logger.debug("Could not build i18n lookup from krcg data: %s", exc)
 
 
 def canonicalize_card_name(name: str) -> str:
     """Return krcg's canonical spelling for *name*, or *name* unchanged.
 
-    Resolution order (each step returns the matched card's canonical ``name``):
+    Resolution order (each step returns the matched card's ``printed_name``):
 
     1. Direct lookup.
     2. Leading-"The" reorder: ``The Coven`` → ``Coven, The``.
     3. Trailing ", The": ``Unmasking`` → ``Unmasking, The``.
     4. i18n fallback: localized names (e.g. ``Sueños de la Esfinge``) resolve via
-       krcg's translated-name aliases to the English card.
+       a pre-built i18n index to the English card.
 
     Returns the input unchanged when krcg is unavailable or no variant resolves
     (genuine forum typos and unknown names are left for downstream flagging).
@@ -127,23 +136,25 @@ def canonicalize_card_name(name: str) -> str:
 
     card = krcg_card_search(name)
     if card:
-        return card.name
+        return card.printed_name
 
     m = _LEADING_THE_RE.match(name)
     if m:
         card = krcg_card_search(f"{m.group(1)}, The")
         if card:
-            return card.name
+            return card.printed_name
 
     if not name.endswith(", The"):
         card = krcg_card_search(f"{name}, The")
         if card:
-            return card.name
+            return card.printed_name
 
     _ensure_i18n_loaded()
-    card = krcg_card_search(name)
-    if card:
-        return card.name
+    card_id = _i18n_lookup.get(name)
+    if card_id is not None:
+        card = krcg_card_search(card_id)
+        if card:
+            return card.printed_name
 
     return name
 
@@ -152,40 +163,41 @@ def canonical_crypt_name(name: str) -> str:
     """Return the canonical *bare* crypt name for *name* (no group suffix).
 
     Crypt cards are stored with their group in a separate ``grouping`` field, so the
-    name must not carry krcg's ``(G#)`` / ``(G# ADV)`` suffix (``Card.name`` includes
-    it). A lone ``(ADV)`` suffix is kept — downstream consumers use it to flag the
-    advanced version.
+    name must not carry krcg's ``(G#)`` / ``(G# ADV)`` suffix (``Card.full_name``
+    includes it). A lone ``(ADV)`` suffix is kept — downstream consumers use it to
+    flag the advanced version.
 
     When krcg resolves *name* (including localized or suffixed spellings), the card's
     ``printed_name`` is returned (krcg's official spelling, e.g. ``The Horde``), plus
-    ``" (ADV)"`` for advanced cards. Reconciling that spelling to a particular
-    reference dataset's sort order is the consumer's responsibility. Otherwise the
-    input is returned with any trailing ``(G#)`` group marker stripped, leaving a
-    bare name for genuine typos / unknown cards.
+    ``" (ADV)"`` for advanced cards. Otherwise the input is returned with any trailing
+    ``(G#)`` group marker stripped, leaving a bare name for genuine typos / unknown
+    cards.
     """
     if is_krcg_loaded():
         card = krcg_card_search(name)
         if not card:
             _ensure_i18n_loaded()
-            card = krcg_card_search(name)
-        if card and card.crypt:
-            return card.printed_name + (" (ADV)" if card.adv else "")
+            card_id = _i18n_lookup.get(name)
+            if card_id is not None:
+                card = krcg_card_search(card_id)
+        if card and card.kind == "Crypt":
+            return card.printed_name + (" (ADV)" if card.advanced else "")
 
     return _strip_group_suffix(name)
 
 
 def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
-    """
-    Return krcg data for all relevant grouping versions of a crypt card by name.
+    """Return krcg data for all relevant grouping versions of a crypt card by name.
 
-    When a vampire exists in multiple groupings (e.g. G5 and G6), each non-ADV
-    version is returned as a separate dict (for a non-ADV lookup), or each ADV
-    version (for an ADV lookup).  ADV and non-ADV are never mixed:
+    Iterates the full card database to find every crypt card sharing the same
+    ``printed_name`` as *vamp_name*, filtering to only non-ADV or only ADV versions
+    (matching the presence of "(ADV)" in *vamp_name*). ADV and non-ADV are never
+    mixed:
 
     - ``"Xaviar"``       → only base (non-ADV) Xaviar versions
     - ``"Xaviar (ADV)"`` → only ADV Xaviar versions
 
-    Returns an empty list if the card is not found in krcg.
+    Returns an empty list if the card is not found in krcg or is not a crypt card.
 
     Each returned dict contains:
     - ``capacity``    - blood capacity (int)
@@ -193,58 +205,49 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
     - ``title``       - title string or ``None``
     - ``clan``        - primary clan name string
     - ``grouping``    - group number (int) or ``"ANY"`` for group-independent cards
-    - ``path``        - V5 Sabbat path string or ``None`` (requires a krcg build
-      that exposes ``Card.path``; degrades to ``None`` otherwise)
+    - ``path``        - V5 Sabbat path string or ``None``
     """
+    _ensure_i18n_loaded()
     card = krcg_card_search(vamp_name)
-    if not card or not card.crypt:
+    if not card or card.kind != "Crypt":
         return []
 
-    # Determine whether the scraped name is an ADV card. This is a heuristic but
-    # should be reliable since the presence of "(ADV)" in the name is a strong
-    # signal of the card's identity and krcg's data is consistent in this regard.
     want_adv: bool = "(ADV)" in vamp_name
-
-    # Gather all variant IDs: the card itself plus all related grouping variants
-    all_ids: set[int] = {card.id}
-    all_ids.update(card.variants.values())
+    target_printed_name: str = card.printed_name
 
     try:
         result: list[Crypt_Card_Dict] = []
-        for card_id in all_ids:
-            try:
-                card_from_id = krcg_card_search(card_id)
-            except KeyError:
+        for candidate in _cards.cards():
+            if candidate.kind != "Crypt":
                 continue
-            if not card_from_id:
+            if candidate.printed_name != target_printed_name:
                 continue
-            if not card_from_id.crypt:
+            if bool(candidate.advanced) != want_adv:
                 continue
-            # Skip variants that don't match the ADV/non-ADV kind of the lookup
-            if bool(card_from_id.adv) != want_adv:
-                continue
-            disciplines = " ".join(card_from_id.disciplines) if card_from_id.disciplines else ""
-            clan: str = card_from_id.clans[0] if card_from_id.clans else ""
-            raw_group = card_from_id.group
+
+            raw_group = candidate.group
             if not raw_group:
                 continue
             grouping: int | str
-            if raw_group == "ANY":
+            if str(raw_group) == "Any":
                 grouping = "ANY"
             else:
                 try:
-                    grouping = int(raw_group)
+                    grouping = int(str(raw_group)[1:])  # "G3" → 3
                 except TypeError, ValueError:
                     continue
-            _path = getattr(card_from_id, "path", None)
+
+            disciplines = " ".join(candidate.disciplines) if candidate.disciplines else ""
+            clan: str = candidate.clan or ""
+            _path = getattr(candidate, "path", None)
             entry: Crypt_Card_Dict = {
-                "id": card_from_id.id,
-                "capacity": card_from_id.capacity,
+                "id": candidate.id,
+                "capacity": candidate.capacity,
                 "disciplines": disciplines,
-                "title": card_from_id.title or None,
+                "title": str(candidate.title) if candidate.title else None,
                 "clan": clan,
                 "grouping": grouping,
-                "path": _path if _path else None,  # coerce "" to None
+                "path": _path if _path else None,
             }
             result.append(entry)
 
@@ -254,8 +257,7 @@ def get_all_vamp_variants(vamp_name: str) -> list[Crypt_Card_Dict]:
 
 
 def get_library_card_type(card_name: str) -> str | None:
-    """
-    Return the canonical section name for a library card according to krcg, or
+    """Return the canonical section name for a library card according to krcg, or
     ``None`` if the card is not in the database.
 
     The section name is the card's types joined by ``"/"`` in alphabetical order,
@@ -264,4 +266,4 @@ def get_library_card_type(card_name: str) -> str | None:
     card = krcg_card_search(card_name)
     if not card:
         return None
-    return "/".join(sorted(card.types))
+    return "/".join(sorted(str(t) for t in card.types))

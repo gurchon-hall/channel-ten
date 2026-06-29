@@ -12,33 +12,41 @@ starting from v0.1.0.
 
 ----
 
-Unreleased — 2026-06-20
-======================
+v0.6.0 — 2026-06-29
+====================
 
-This release captures changes that are now available but not yet published as a
-formal tagged version.
+Compatibility with krcg 5.0, path-data support for V5 Sabbat vampires, and
+configurable player-count thresholds.
 
 Added
 -----
 - Crypt and library cards now carry their krcg ``id`` in the YAML output,
   resolved during krcg enrichment (crypt ids are group-specific). Cards krcg
   cannot identify are left without an id.
-- Vampire path support for crypt cards, including enrichment and text output.
+- Vampire path data (V5 Sabbat) enrichment for crypt cards: ``path`` field
+  populated from krcg, included in YAML output and text reports.
 - Configurable minimum-player threshold via the ``MIN_PLAYERS`` environment
   variable for validation checks.
-- Improved handling for card metadata and output formatting when path data is
-  available.
 
 Changed
 -------
-- Validation logic now respects environment-based configuration for tournament
-  thresholds.
-- Card output now preserves path information for supported vampires.
+- Upgraded krcg dependency to **5.0** (``krcg>=5.0,<6.0``).  All internal
+  usages updated: ``load()`` replaces the ``VTES`` singleton, ``CardDict``
+  replaces ``VTES.get()``, attribute names aligned to the new model
+  (``kind``, ``advanced``, ``clan``, ``printed_name``, ``group`` as StrEnum).
+- ``TYPE_ORDER`` is now defined locally in ``_krcg_helper``; krcg 5.0 removed
+  it from ``krcg.config``.
+- i18n name resolution now builds a ``_i18n_lookup`` dict by iterating all
+  cards once; ``VTES.load_from_vekn()`` (removed in krcg 5.0) is no longer
+  called.
 
 Fixed
 -----
-- Resolved edge cases around card enrichment and metadata display for path-aware
-  vampires.
+- CI failures caused by krcg 5.0 being installed via ``allow-prereleases:
+  true`` in the GitHub Actions workflow while no upper bound was set on the
+  krcg dependency.
+- Section-ordering test failures caused by ``TYPE_ORDER`` being silently empty
+  when the krcg 5.0 import failed.
 
 ----
 
