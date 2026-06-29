@@ -470,13 +470,13 @@ class TestValidateRunValidatorInteraction:
         mocks["error_types"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
     def test_recovered_error_file_moved_to_clean_location(self, tmp_path: Path):
-        """An errors/ file that now passes validation is written back in place."""
+        """An errors/ file that passes validation is promoted to the date-based path."""
         error_file = tmp_path / "errors" / "unconfirmed_winner" / "9999.yaml"
         _write_yaml(error_file, _tournament_dict())
         with _patch_validate(enrich_crypt_cards=["fix"], error_types=[]):
             validate_mod.run(_validate_namespace(tmp_path))
-        # File is updated in place (in errors/), not moved elsewhere
-        assert error_file.exists()
+        assert not error_file.exists()
+        assert (tmp_path / "2023" / "03" / "9999.yaml").exists()
 
     def test_winner_update_written_to_file(self, tmp_path: Path):
         """When the calendar returns a different winner name, it is persisted."""
