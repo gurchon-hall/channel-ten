@@ -91,11 +91,13 @@ def _validate_namespace(
     twds_dir: Path,
     dry_run: bool = False,
     full_validation: bool = False,
+    errors_only: bool = False,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         twds_dir=twds_dir,
         dry_run=dry_run,
         full_validation=full_validation,
+        errors_only=errors_only,
         verbose=False,
     )
 
