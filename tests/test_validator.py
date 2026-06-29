@@ -901,7 +901,9 @@ class TestAddCardIds:
             ),
             patch(
                 "channel_ten.validator.krcg_card_search",
-                side_effect=lambda name: self._library_card(100001) if name == "Blood Doll" else None,
+                side_effect=lambda name: (
+                    self._library_card(100001) if name == "Blood Doll" else None
+                ),
             ),
         ):
             changed = add_card_ids(deck)
