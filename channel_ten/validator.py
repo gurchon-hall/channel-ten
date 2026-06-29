@@ -59,14 +59,16 @@ MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "10"))
 
 # Fields copied from krcg into a scraped CryptCard; count and name are
 # preserved from the scraped data and never overwritten.
-_ENRICH_FIELDS: frozenset[str] = frozenset({
-    "capacity",
-    "disciplines",
-    "title",
-    "clan",
-    "grouping",
-    "path",
-})
+_ENRICH_FIELDS: frozenset[str] = frozenset(
+    {
+        "capacity",
+        "disciplines",
+        "title",
+        "clan",
+        "grouping",
+        "path",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers
