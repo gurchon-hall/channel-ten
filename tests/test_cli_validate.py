@@ -199,9 +199,7 @@ class TestLoadSkipEventIds:
     def test_ignores_comments_and_blank_lines(self, tmp_path: Path):
         twds_dir = tmp_path / "twds"
         twds_dir.mkdir()
-        (tmp_path / "skip_events.txt").write_text(
-            "# this is a comment\n\n1234\n", encoding="utf-8"
-        )
+        (tmp_path / "skip_events.txt").write_text("# this is a comment\n\n1234\n", encoding="utf-8")
         assert _load_skip_event_ids(twds_dir) == frozenset({1234})
 
     def test_warns_on_non_integer_line(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
