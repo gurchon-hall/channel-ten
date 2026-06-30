@@ -1,11 +1,24 @@
 import io
 from pathlib import Path
+from typing import Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 
 from channel_ten.models import Tournament
 from channel_ten.output._common import date_subdir
+
+_TOURNAMENT_FIELD_ORDER = list(Tournament.model_fields.keys())
+
+
+def reorder_tournament_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a new dict with keys ordered as per the Tournament model definition."""
+    ordered: dict[str, Any] = {k: data[k] for k in _TOURNAMENT_FIELD_ORDER if k in data}
+    for k in data:
+        if k not in ordered:
+            ordered[k] = data[k]
+    return ordered
+
 
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 

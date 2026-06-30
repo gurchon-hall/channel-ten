@@ -31,8 +31,8 @@ from ruamel.yaml import YAML
 
 from channel_ten._logger import setup_logging
 from channel_ten.cli._common import SubParsersAction
-from channel_ten.cli.scrape import serialize_tournament
-from channel_ten.models import Deck, Tournament
+from channel_ten.models import Deck
+from channel_ten.output.yaml import reorder_tournament_dict
 from channel_ten.scraper._forum import extract_twd_from_thread
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
 from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
@@ -56,17 +56,6 @@ _FAST_VALIDATION_YAML_FILES_NUMBER_THRESHOLD = 25
 # (sibling of the twds/ directory).  One event ID per line; lines starting with
 # '#' are treated as comments and ignored.
 SKIP_EVENTS_FILENAME = "skip_events.txt"
-
-_TOURNAMENT_FIELD_ORDER = list(Tournament.model_fields.keys())
-
-
-def _reorder_tournament_dict(data: dict[str, Any]) -> dict[str, Any]:
-    """Return a new dict with keys ordered as per the Tournament model definition."""
-    ordered: dict[str, Any] = {k: data[k] for k in _TOURNAMENT_FIELD_ORDER if k in data}
-    for k in data:
-        if k not in ordered:
-            ordered[k] = data[k]
-    return ordered
 
 
 def register(sub: SubParsersAction) -> None:
@@ -257,7 +246,7 @@ def run(args: argparse.Namespace) -> int:
                         client, forum_post_url, delay=DEFAULT_DELAY_SECONDS
                     )
                     if fresh is not None:
-                        fresh_data = serialize_tournament(fresh)
+                        fresh_data = fresh.model_dump(exclude_none=True)
                         # Preserve vekn_number — forum posts never contain it
                         preserved_vekn = data.get("vekn_number")
                         if preserved_vekn is not None:
@@ -328,7 +317,7 @@ def run(args: argparse.Namespace) -> int:
                     if dirty:
                         with open(dest, "w", encoding="utf-8") as fh:
                             yaml.dump(  # pyright: ignore[reportUnknownMemberType]
-                                _reorder_tournament_dict(data),
+                                reorder_tournament_dict(data),
                                 fh,
                             )
                         if in_errors:

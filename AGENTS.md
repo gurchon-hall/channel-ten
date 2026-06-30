@@ -8,14 +8,16 @@ Guidelines for automated agents (CI, coding, PR review) working on this reposito
 
 ```text
 channel_ten/
-├── cli/             CLI entry points (one file per subcommand)
+├── cli/             CLI entry points (one file per subcommand; no business logic)
 ├── output/          Serializers: YAML and TXT writers
 ├── parser/          TWD text-format parsers (header, deck, helpers)
 ├── scraper/         HTTP scraping (forum, TWDA archive, VEKN calendar)
 ├── _krcg_helper.py  krcg card-database wrappers
 ├── _logger.py       Logging configuration (single source of truth)
+├── github.py        GitHub REST API helpers and TWDA-specific operations
 ├── models.py        Pydantic data models (canonical representation)
-├── publisher.py     GitHub PR publisher
+├── pipeline.py      Shared scraping pipeline (process_tournament, route_tournament)
+├── publisher.py     GitHub PR orchestration (publish_all_as_single_pr, BatchPRResult)
 └── validator.py     Pure validation logic (no I/O)
 tests/               pytest suite — mirrors channel_ten/ structure
 .github/workflows/   CI definitions (see below)
@@ -55,7 +57,7 @@ A commit must pass all five before merging. There are no exceptions.
 - **ruff failure** → formatting or lint issue. Run `ruff check --fix && ruff format` locally, then re-commit.
 - **pytest failure** → check `reports/pytest/` (HTML coverage report) and `--tb=short` output. Do not suppress with `filterwarnings` without understanding the cause.
 - **CLI smoke failure** → a subcommand import or argparse registration broke. The smoke tests only call `--help`; if they fail, the error is in `cli/__init__.py` or the subcommand's top-level imports.
-- **mypy failure** (run locally, not in CI) → fix types; do not add `# type: ignore` without a comment explaining why.
+- **ty failure** (run locally, not in CI) → fix types; do not add a `ty: ignore` comment without explaining why.
 
 ### Environment variables
 
@@ -86,7 +88,7 @@ A commit must pass all five before merging. There are no exceptions.
 - [ ] New behaviour covered by at least one test in `tests/test_<module>.py`.
 - [ ] Network or filesystem tests marked `@pytest.mark.integration`.
 - [ ] `ruff check --fix && ruff format` passes locally.
-- [ ] `mypy channel_ten/` passes locally (strict mode, see `pyproject.toml`).
+- [ ] `ty check channel_ten/` passes locally (see `[tool.ty]` in `pyproject.toml`).
 
 ### Layer contracts
 

@@ -13,6 +13,7 @@ import pytest
 from bs4 import BeautifulSoup, Tag
 
 import channel_ten.cli.scrape as _scrape_mod  # import directly, bypasses cli/__init__
+import channel_ten.pipeline as _pipeline_mod
 from channel_ten.models import Tournament
 from channel_ten.scraper import (
     ICON_DEFAULT,
@@ -187,10 +188,10 @@ class TestScrapeCliRouting:
             return t
 
         with (
-            patch.object(_scrape_mod, "_check_calendar_winner", side_effect=_fake_winner_check),
-            patch.object(_scrape_mod, "_lookup_player", side_effect=_fake_player_lookup),
-            patch.object(_scrape_mod, "_enrich_with_krcg", side_effect=_fake_enrich_with_krcg),
-            patch.object(_scrape_mod, "_validate_content", return_value=[]),
+            patch.object(_pipeline_mod, "_check_calendar_winner", side_effect=_fake_winner_check),
+            patch.object(_pipeline_mod, "_lookup_player", side_effect=_fake_player_lookup),
+            patch.object(_pipeline_mod, "_enrich_with_krcg", side_effect=_fake_enrich_with_krcg),
+            patch.object(_pipeline_mod, "_validate_content", return_value=[]),
         ):
             yield
 
@@ -233,7 +234,7 @@ class TestScrapeCliRouting:
                 return_value=iter([(t, ICON_MERGED)]),
             ),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "tournament_to_yaml_str",
                 return_value="yaml: content\n",
             ),
@@ -262,11 +263,11 @@ class TestScrapeCliRouting:
                 return_value=iter([(t, ICON_MERGED)]),
             ),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "tournament_to_yaml_str",
                 return_value="yaml: content\n",
             ),
-            patch.object(scrape_mod, "write_tournament_yaml") as mock_write,
+            patch.object(_pipeline_mod, "write_tournament_yaml") as mock_write,
         ):
             scrape_mod.run(args)
 
@@ -295,7 +296,7 @@ class TestScrapeCliRouting:
                 return_value=iter([(t, ICON_MERGED)]),
             ),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "tournament_to_yaml_str",
                 return_value="new: content\n",
             ),
@@ -332,7 +333,7 @@ class TestScrapeCliRouting:
 
         with (
             patch.object(scrape_mod, "scrape_forum", return_value=iter([(t, icon)])),
-            patch.object(scrape_mod, "write_tournament_yaml", side_effect=_fake_to_yaml),
+            patch.object(_pipeline_mod, "write_tournament_yaml", side_effect=_fake_to_yaml),
         ):
             scrape_mod.run(args)
 
@@ -361,7 +362,7 @@ class TestScrapeCliRouting:
         with (
             patch.object(scrape_mod, "scrape_forum", return_value=iter([(t, icon)])),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "write_tournament_yaml",
                 return_value=normal_path,
             ),
@@ -387,7 +388,7 @@ class TestScrapeCliRouting:
         with (
             patch.object(scrape_mod, "scrape_forum", return_value=iter([(t, icon)])),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "write_tournament_yaml",
                 return_value=tmp_path / "x.yaml",
             ),
@@ -436,7 +437,7 @@ class TestScrapeCliRouting:
         )
         with (
             patch.object(scrape_mod, "scrape_forum", return_value=iter([(t, icon)])),
-            patch.object(scrape_mod, "write_tournament_yaml") as mock_write,
+            patch.object(_pipeline_mod, "write_tournament_yaml") as mock_write,
         ):
             rc = scrape_mod.run(args)
 
@@ -463,7 +464,7 @@ class TestScrapeCliRouting:
                 return_value=iter([(t, ICON_DEFAULT)]),
             ),
             patch.object(
-                scrape_mod,
+                _pipeline_mod,
                 "write_tournament_yaml",
                 side_effect=RuntimeError("boom"),
             ),

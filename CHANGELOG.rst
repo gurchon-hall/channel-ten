@@ -16,13 +16,52 @@ Unreleased
 ==========
 
 Card ID support, event exclusion from validation, ``ANY``-grouping crypt
-parsing, rotating log files, and a one-time card-rename migration script.
+parsing, rotating log files, a one-time card-rename migration script, and a
+module-responsibility refactor separating pipeline and GitHub API logic into
+dedicated modules.
 Card ID feature first implemented by
 `@Zavierazo <https://github.com/Zavierazo>`_; refactored here due to the
 growing version gap since `PR #14 <https://github.com/gurchon-hall/channel-ten/pull/14>`_.
 
 Added
 -----
+
+- ``channel_ten/pipeline.py``: new module owning the shared scraping pipeline.
+  Contains ``RouteCounters`` (dataclass), ``process_tournament``,
+  ``route_tournament``, and the step helpers ``_check_calendar_name``,
+  ``_check_calendar_winner``, ``_lookup_player``, ``_enrich_with_krcg``,
+  ``_validate_content``.  Previously this code lived in ``cli/scrape.py``,
+  which violated the rule that CLI modules must not act as libraries for other
+  CLI modules (``cli/reimport.py`` imported from it).
+- ``channel_ten/github.py``: new module owning all GitHub REST API logic.
+  Consolidates generic helpers (``headers``, ``get_authenticated_user``), TWDA
+  low-level helpers previously scattered in ``publisher.py``
+  (``ensure_fork``, ``get_branch_sha``, ``create_branch``,
+  ``file_exists_on_branch``, ``put_file``, ``open_pull_request``,
+  ``find_existing_pr``, ``delete_branch``), the batch file-commit loop
+  ``push_files_to_branch``, and ``post_twda_issue`` (previously in
+  ``publisher.py``).
+- ``reorder_tournament_dict`` added as a public function in
+  ``channel_ten/output/yaml.py`` (moved from the private
+  ``_reorder_tournament_dict`` in ``cli/validate.py``, which was the wrong
+  module for output-formatting logic).
+
+Changed
+-------
+
+- ``cli/scrape.py`` is now a pure CLI entry point: argument registration and
+  ``run()`` wiring only.  All pipeline helpers moved to ``channel_ten/pipeline.py``.
+- ``cli/reimport.py`` now imports ``RouteCounters``, ``process_tournament``,
+  and ``route_tournament`` from ``channel_ten.pipeline`` (was ``cli.scrape``);
+  imports ``post_twda_issue`` from ``channel_ten.github`` (was ``publisher``).
+- ``cli/validate.py`` now imports ``reorder_tournament_dict`` from
+  ``channel_ten.output.yaml`` (was a private local function).
+- ``publisher.py`` reduced to domain orchestration: ``BatchPRResult``,
+  ``sanitize_branch_name``, and ``publish_all_as_single_pr`` only.  All
+  low-level GitHub REST calls delegated to ``channel_ten.github``.
+
+Added (card ID / validation, continued)
+----------------------------------------
 
 - ``--errors-only`` flag on the ``validate`` subcommand: when set, only files
   under ``twds/errors/`` are processed (instead of the full published tree or

@@ -15,6 +15,7 @@ from unittest.mock import (
 
 from conftest import make_tournament
 
+import channel_ten.pipeline as pipeline_cmd
 from channel_ten.cli import scrape as scrape_cmd
 
 # ---------------------------------------------------------------------------
@@ -58,14 +59,15 @@ def _patch_pipeline(**overrides: Any):
     }
     patches.update(overrides)
 
+    # scrape_forum lives in cli.scrape; pipeline steps live in pipeline.
+    _CLI_LEVEL = {"scrape_forum"}
+
     mgrs: list[MagicMock | AsyncMock] = []
     for name, rv in patches.items():
+        module = "channel_ten.cli.scrape" if name in _CLI_LEVEL else "channel_ten.pipeline"
         p: MagicMock | AsyncMock = cast(
             MagicMock | AsyncMock,
-            patch(
-                f"channel_ten.cli.scrape.{name}",
-                return_value=rv,
-            ),
+            patch(f"{module}.{name}", return_value=rv),
         )
         mgrs.append(p)  # pyright: ignore[reportUnknownMemberType]
 
@@ -150,7 +152,7 @@ class TestScrapeRun:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])):
                 with patch(
-                    "channel_ten.cli.scrape.write_tournament_yaml",
+                    "channel_ten.pipeline.write_tournament_yaml",
                     side_effect=FileExistsError("exists"),
                 ):
                     ret = scrape_cmd.run(args)
@@ -165,7 +167,7 @@ class TestScrapeRun:
                 fetch_event_winner="Jane Doe",
             ):
                 with patch(
-                    "channel_ten.cli.scrape.write_tournament_yaml",
+                    "channel_ten.pipeline.write_tournament_yaml",
                     side_effect=Exception("error"),
                 ):
                     ret = scrape_cmd.run(args)
@@ -337,10 +339,10 @@ class TestScrapeInternalPaths:
         t = make_tournament()
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_winner",
+            "channel_ten.pipeline.fetch_event_winner",
             side_effect=Exception("network error"),
         ):
-            result, missing = scrape_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
+            result, missing = pipeline_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -354,10 +356,10 @@ class TestScrapeInternalPaths:
         t = make_tournament()  # winner="Jane Doe"
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_winner",
+            "channel_ten.pipeline.fetch_event_winner",
             return_value="New Winner",
         ):
-            result, missing = scrape_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
+            result, missing = pipeline_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -370,8 +372,8 @@ class TestScrapeInternalPaths:
 
         t = make_tournament()
         client = MagicMock()
-        with patch("channel_ten.cli.scrape.fetch_event_winner", return_value=None):
-            _, missing = scrape_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
+        with patch("channel_ten.pipeline.fetch_event_winner", return_value=None):
+            _, missing = pipeline_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -383,7 +385,7 @@ class TestScrapeInternalPaths:
 
         t = make_tournament().model_copy(update={"event_url": None})
         client = MagicMock()
-        result, missing = scrape_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
+        result, missing = pipeline_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
             client,
             t,
             delay=0,
@@ -399,10 +401,10 @@ class TestScrapeInternalPaths:
         t = make_tournament()
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_player",
+            "channel_ten.pipeline.fetch_player",
             side_effect=Exception("timeout"),
         ):
-            result = scrape_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
+            result = pipeline_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -414,8 +416,8 @@ class TestScrapeInternalPaths:
 
         t = make_tournament()
         client = MagicMock()
-        with patch("channel_ten.cli.scrape.fetch_player", return_value=None):
-            result = scrape_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
+        with patch("channel_ten.pipeline.fetch_player", return_value=None):
+            result = pipeline_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -427,23 +429,23 @@ class TestScrapeInternalPaths:
     def test_enrich_with_krcg_prints_crypt_fixes(self):
         t = make_tournament()
         with patch(
-            "channel_ten.cli.scrape.enrich_crypt_cards",
+            "channel_ten.pipeline.enrich_crypt_cards",
             return_value=["capacity: 0 → 4"],
         ):
-            with patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]):
-                result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
+            with patch("channel_ten.pipeline.fix_card_sections", return_value=[]):
+                result = pipeline_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
                     t
                 )
         assert result is t  # same object returned; mutations are in-place
 
     def test_enrich_with_krcg_prints_section_fixes(self):
         t = make_tournament()
-        with patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]):
+        with patch("channel_ten.pipeline.enrich_crypt_cards", return_value=[]):
             with patch(
-                "channel_ten.cli.scrape.fix_card_sections",
+                "channel_ten.pipeline.fix_card_sections",
                 return_value=["Blood Doll → Master"],
             ):
-                result = scrape_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
+                result = pipeline_cmd._enrich_with_krcg(  # pyright: ignore[reportPrivateUsage]
                     t
                 )
         assert result is t  # same object returned; mutations are in-place
@@ -455,10 +457,10 @@ class TestScrapeInternalPaths:
         t = make_tournament()
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_player",
+            "channel_ten.pipeline.fetch_player",
             return_value=("Jane Doe-Smith", 12345),
         ):
-            result = scrape_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
+            result = pipeline_cmd._lookup_player(  # pyright: ignore[reportPrivateUsage]
                 client, t, delay=0
             )
         assert result.winner == "Jane Doe-Smith"
@@ -470,7 +472,7 @@ class TestScrapeInternalPaths:
 
         t = MagicMock()
         t.model_dump.return_value = {}  # _to_serializable returns no deck key
-        result = scrape_cmd._enrich_with_krcg(t)  # pyright: ignore[reportPrivateUsage]
+        result = pipeline_cmd._enrich_with_krcg(t)  # pyright: ignore[reportPrivateUsage]
         assert result is t
 
     # ── _validate_content ────────────────────────────────────────────────────
@@ -481,11 +483,11 @@ class TestScrapeInternalPaths:
         t = make_tournament()
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_date",
+            "channel_ten.pipeline.fetch_event_date",
             side_effect=Exception("timeout"),
         ):
-            with patch("channel_ten.cli.scrape.error_types", return_value=[]):
-                errors = scrape_cmd._validate_content(  # pyright: ignore[reportPrivateUsage]
+            with patch("channel_ten.pipeline.error_types", return_value=[]):
+                errors = pipeline_cmd._validate_content(  # pyright: ignore[reportPrivateUsage]
                     client,
                     t,
                     delay=0,
@@ -498,8 +500,8 @@ class TestScrapeInternalPaths:
 
         t = make_tournament().model_copy(update={"event_url": None})
         client = MagicMock()
-        with patch("channel_ten.cli.scrape.error_types", return_value=[]) as mock_et:
-            errors = scrape_cmd._validate_content(  # pyright: ignore[reportPrivateUsage]
+        with patch("channel_ten.pipeline.error_types", return_value=[]) as mock_et:
+            errors = pipeline_cmd._validate_content(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -616,10 +618,10 @@ class TestCheckCalendarName:
         t = make_tournament()  # name="Test Event"
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_name",
+            "channel_ten.pipeline.fetch_event_name",
             return_value="Authoritative Event Name",
         ):
-            result = scrape_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -632,8 +634,8 @@ class TestCheckCalendarName:
 
         t = make_tournament()
         client = MagicMock()
-        with patch("channel_ten.cli.scrape.fetch_event_name", return_value=None):
-            result = scrape_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+        with patch("channel_ten.pipeline.fetch_event_name", return_value=None):
+            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -647,10 +649,10 @@ class TestCheckCalendarName:
         t = make_tournament()  # name="Test Event"
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_name",
+            "channel_ten.pipeline.fetch_event_name",
             return_value="Test Event",
         ):
-            result = scrape_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -663,10 +665,10 @@ class TestCheckCalendarName:
         t = make_tournament()
         client = MagicMock()
         with patch(
-            "channel_ten.cli.scrape.fetch_event_name",
+            "channel_ten.pipeline.fetch_event_name",
             side_effect=Exception("network error"),
         ):
-            result = scrape_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
@@ -678,7 +680,7 @@ class TestCheckCalendarName:
 
         t = make_tournament().model_copy(update={"event_url": None})
         client = MagicMock()
-        result = scrape_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+        result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
             client,
             t,
             delay=0,

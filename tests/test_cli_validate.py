@@ -612,13 +612,18 @@ class TestValidateRunEdgeCases:
 
     def test_reorder_tournament_dict_preserves_extra_keys(self):
         """Extra keys beyond the Tournament model are appended at the end."""
+        from channel_ten.output.yaml import (
+            _TOURNAMENT_FIELD_ORDER,  # pyright: ignore[reportPrivateUsage]
+            reorder_tournament_dict,
+        )
+
         data = _tournament_dict()
         data["extra_field"] = "extra_value"
-        reordered = validate_mod._reorder_tournament_dict(data)  # pyright: ignore[reportPrivateUsage]
+        reordered = reorder_tournament_dict(data)
         keys = list(reordered.keys())
         assert "extra_field" in keys
         # extra_field must come after all standard model fields
-        standard_keys = validate_mod._TOURNAMENT_FIELD_ORDER  # pyright: ignore[reportPrivateUsage]
+        standard_keys = _TOURNAMENT_FIELD_ORDER
         last_standard = max((keys.index(k) for k in standard_keys if k in keys), default=-1)
         assert keys.index("extra_field") > last_standard
 

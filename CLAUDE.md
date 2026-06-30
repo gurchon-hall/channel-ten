@@ -35,7 +35,7 @@ from the code: an external constraint, a data-format/protocol quirk, a citation,
 that is genuinely surprising. If in doubt, leave it out.
 
 Public functions and classes get a **Google-style docstring**; keep it to the minimum that
-serves the reader (ruff/mypy require it on public symbols). Module-level docstrings are
+serves the reader. Module-level docstrings are
 short: one paragraph stating the module's purpose and how it fits the pipeline.
 
 Do not write:
@@ -90,8 +90,8 @@ dict[str, Any]   # not typing.Dict[str, Any]
 str | None       # not Optional[str]
 ```
 
-`mypy` runs in strict mode (see `pyproject.toml`). Every public function must have
-complete type annotations. Prefer typed wrapper functions to `# type: ignore`.
+`ty` is the type checker (see `[tool.ty]` in `pyproject.toml`). Every public function must have
+complete type annotations. Prefer typed wrapper functions to suppression comments.
 
 ### Models
 

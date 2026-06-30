@@ -36,6 +36,7 @@ def _import_namespace(**kwargs: Any) -> argparse.Namespace:
         overwrite=False,
         github_token=None,
         limit=None,
+        create_issue=False,
         verbose=False,
     )
     defaults.update(kwargs)
@@ -50,13 +51,13 @@ def _patch_pipeline_externals(winner: str = "Pedro Millán Monje", errors: list[
     ``unconfirmed_winner``. ``error_types`` returns *errors* (default: none).
     """
     with (
-        patch("channel_ten.cli.scrape.fetch_event_name", return_value=None),
-        patch("channel_ten.cli.scrape.fetch_event_winner", return_value=winner),
-        patch("channel_ten.cli.scrape.fetch_event_date", return_value=None),
-        patch("channel_ten.cli.scrape.fetch_player", return_value=None),
-        patch("channel_ten.cli.scrape.enrich_crypt_cards", return_value=[]),
-        patch("channel_ten.cli.scrape.fix_card_sections", return_value=[]),
-        patch("channel_ten.cli.scrape.error_types", return_value=errors or []),
+        patch("channel_ten.pipeline.fetch_event_name", return_value=None),
+        patch("channel_ten.pipeline.fetch_event_winner", return_value=winner),
+        patch("channel_ten.pipeline.fetch_event_date", return_value=None),
+        patch("channel_ten.pipeline.fetch_player", return_value=None),
+        patch("channel_ten.pipeline.enrich_crypt_cards", return_value=[]),
+        patch("channel_ten.pipeline.fix_card_sections", return_value=[]),
+        patch("channel_ten.pipeline.error_types", return_value=errors or []),
     ):
         yield
 

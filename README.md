@@ -203,16 +203,16 @@ channel_ten/
 ├── cli/
 │   ├── __init__.py        # CLI entry point (channel-ten) and argparse setup
 │   ├── _common.py         # CLI shared utilities
-│   ├── importer.py        # CLI command: import decks from GiottoVerducci/TWD
+│   ├── reimport.py        # CLI command: import decks from GiottoVerducci/TWD
 │   ├── parse.py           # CLI command: parse .txt ↔ .yaml
 │   ├── publish.py         # CLI command: publish decks to GitHub
-│   ├── scrape.py          # CLI command: scrape the VEKN forum (+ shared pipeline)
+│   ├── scrape.py          # CLI command: scrape the VEKN forum
 │   └── validate.py        # CLI command: re-validate published YAML files
 ├── output/
 │   ├── __init__.py
 │   ├── _common.py         # Output shared utilities
 │   ├── txt.py             # TXT serializer
-│   └── yaml.py            # YAML serializer
+│   └── yaml.py            # YAML serializer + reorder_tournament_dict
 ├── parser/
 │   ├── __init__.py
 │   ├── _deck.py           # Deck section parser
@@ -227,8 +227,11 @@ channel_ten/
 │   ├── _twda.py           # GiottoVerducci/TWD archive listing and fetching
 │   └── _vekn.py           # VEKN event calendar and player registry lookups
 ├── _krcg_helper.py        # krcg card-database wrappers (lookup, enrichment, canonicalization)
+├── _logger.py             # Logging configuration (setup_logging)
+├── github.py              # GitHub REST API helpers and TWDA-specific operations
 ├── models.py              # Pydantic data models (Card, CryptCard, LibraryCard, Deck, Tournament)
-├── publisher.py           # GitHub PR publisher
+├── pipeline.py            # Shared scraping pipeline (process_tournament, route_tournament)
+├── publisher.py           # GitHub PR orchestration (publish_all_as_single_pr, BatchPRResult)
 └── validator.py           # YAML validation logic
 scripts/
 └── migrate_card_names.py  # One-time migration: rename cards and backfill IDs in eternal-vigilance

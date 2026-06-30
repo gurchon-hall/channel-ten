@@ -1,48 +1,49 @@
 """Tests for channel_ten.publisher using httpx mocking."""
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 from conftest import make_tournament
 
+from channel_ten.github import (
+    create_branch,
+    delete_branch,
+    ensure_fork,
+    file_exists_on_branch,
+    find_existing_pr,
+    get_authenticated_user,
+    get_branch_sha,
+    headers,
+    open_pull_request,
+    put_file,
+)
 from channel_ten.publisher import (
     BatchPRResult,
-    _create_branch,  # pyright: ignore[reportPrivateUsage]
-    _delete_branch,  # pyright: ignore[reportPrivateUsage]
-    _ensure_fork,  # pyright: ignore[reportPrivateUsage]
-    _file_exists_on_branch,  # pyright: ignore[reportPrivateUsage]
-    _find_existing_pr,  # pyright: ignore[reportPrivateUsage]
-    _get_authenticated_user,  # pyright: ignore[reportPrivateUsage]
-    _get_branch_sha,  # pyright: ignore[reportPrivateUsage]
-    _headers,  # pyright: ignore[reportPrivateUsage]
-    _open_pull_request,  # pyright: ignore[reportPrivateUsage]
-    _put_file,  # pyright: ignore[reportPrivateUsage]
     publish_all_as_single_pr,
     sanitize_branch_name,
 )
 
 # ---------------------------------------------------------------------------
-# _headers
+# headers
 # ---------------------------------------------------------------------------
 
 
 class TestHeaders:
     def test_raises_without_token(self):
-        with patch("channel_ten.publisher._GITHUB_TOKEN", None):
+        with patch("channel_ten.github._GITHUB_TOKEN", None):
             with pytest.raises(ValueError, match="GitHub token"):
-                _headers(token=None)
+                headers(token=None)
 
     def test_returns_dict_with_token(self):
-        h = _headers(token="mytoken")
+        h = headers(token="mytoken")
         assert h["Authorization"] == "Bearer mytoken"
         assert "Accept" in h
 
     def test_uses_env_token_when_not_passed(self):
-        with patch("channel_ten.publisher._GITHUB_TOKEN", "env_token"):
-            h = _headers(token=None)
+        with patch("channel_ten.github._GITHUB_TOKEN", "env_token"):
+            h = headers(token=None)
         assert h["Authorization"] == "Bearer env_token"
 
 
@@ -83,7 +84,7 @@ class TestGetAuthenticatedUser:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        result = _get_authenticated_user(mock_client, token="mytoken")
+        result = get_authenticated_user(mock_client, token="mytoken")
         assert result == "testuser"
 
 
@@ -96,7 +97,7 @@ class TestGetBranchSha:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        sha = _get_branch_sha(mock_client, "master", token="mytoken")
+        sha = get_branch_sha(mock_client, "master", token="mytoken")
         assert sha == "abc123"
 
 
@@ -110,7 +111,7 @@ class TestCreateBranch:
         mock_client.post.return_value = mock_resp
 
         # Should not raise
-        _create_branch(mock_client, "new-branch", "abc123", token="mytoken")
+        create_branch(mock_client, "new-branch", "abc123", token="mytoken")
 
     def test_already_exists_422(self):
         mock_resp = MagicMock()
@@ -121,7 +122,7 @@ class TestCreateBranch:
         mock_client.post.return_value = mock_resp
 
         # Should not raise even if 422
-        _create_branch(mock_client, "existing-branch", "abc123", token="mytoken")
+        create_branch(mock_client, "existing-branch", "abc123", token="mytoken")
 
 
 class TestFileExistsOnBranch:
@@ -132,7 +133,7 @@ class TestFileExistsOnBranch:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        result = _file_exists_on_branch(mock_client, "decks/test.txt", "master", token="t")
+        result = file_exists_on_branch(mock_client, "decks/test.txt", "master", token="t")
         assert result is True
 
     def test_returns_false_when_404(self):
@@ -142,7 +143,7 @@ class TestFileExistsOnBranch:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        result = _file_exists_on_branch(mock_client, "decks/test.txt", "master", token="t")
+        result = file_exists_on_branch(mock_client, "decks/test.txt", "master", token="t")
         assert result is False
 
 
@@ -159,7 +160,7 @@ class TestPutFile:
         mock_client.get.return_value = get_resp
         mock_client.put.return_value = put_resp
 
-        _put_file(mock_client, "decks/test.txt", "content", "branch", "msg", token="t")
+        put_file(mock_client, "decks/test.txt", "content", "branch", "msg", token="t")
         mock_client.put.assert_called_once()
 
     def test_updates_existing_file(self):
@@ -175,7 +176,7 @@ class TestPutFile:
         mock_client.get.return_value = get_resp
         mock_client.put.return_value = put_resp
 
-        _put_file(mock_client, "decks/test.txt", "content", "branch", "msg", token="t")
+        put_file(mock_client, "decks/test.txt", "content", "branch", "msg", token="t")
         # PUT was called with sha in body
         call_kwargs = mock_client.put.call_args[1]
         assert call_kwargs["json"]["sha"] == "existing_sha"
@@ -191,7 +192,7 @@ class TestOpenPullRequest:
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp
 
-        url = _open_pull_request(mock_client, "branch", "Title", "Body", token="t")
+        url = open_pull_request(mock_client, "branch", "Title", "Body", token="t")
         assert url == "https://github.com/owner/repo/pull/1"
 
     def test_existing_pr_422(self):
@@ -211,7 +212,7 @@ class TestOpenPullRequest:
         mock_client.post.return_value = mock_post_resp
         mock_client.get.return_value = mock_get_resp
 
-        url = _open_pull_request(mock_client, "branch", "Title", "Body", token="t")
+        url = open_pull_request(mock_client, "branch", "Title", "Body", token="t")
         assert url == "https://github.com/owner/repo/pull/2"
 
     def test_other_422_raises(self):
@@ -226,7 +227,7 @@ class TestOpenPullRequest:
         mock_client.post.return_value = mock_resp
 
         with pytest.raises(httpx.HTTPStatusError):
-            _open_pull_request(mock_client, "branch", "Title", "Body", token="t")
+            open_pull_request(mock_client, "branch", "Title", "Body", token="t")
 
 
 class TestFindExistingPr:
@@ -238,7 +239,7 @@ class TestFindExistingPr:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        url = _find_existing_pr(mock_client, "branch", token="t")
+        url = find_existing_pr(mock_client, "branch", token="t")
         assert url == "https://github.com/owner/repo/pull/5"
 
     def test_returns_none_when_empty(self):
@@ -249,7 +250,7 @@ class TestFindExistingPr:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        url = _find_existing_pr(mock_client, "branch", token="t")
+        url = find_existing_pr(mock_client, "branch", token="t")
         assert url is None
 
     def test_returns_none_on_non_200(self):
@@ -260,7 +261,7 @@ class TestFindExistingPr:
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
 
-        url = _find_existing_pr(mock_client, "branch", token="t")
+        url = find_existing_pr(mock_client, "branch", token="t")
         assert url is None
 
 
@@ -278,7 +279,7 @@ class TestDeleteBranch:
         mock_client.delete.return_value = mock_resp
 
         # Should not raise
-        _delete_branch(mock_client, "my-branch", token="mytoken", owner="testuser")
+        delete_branch(mock_client, "my-branch", token="mytoken", owner="testuser")
         mock_client.delete.assert_called_once()
 
     def test_non_204_logs_warning(self, caplog: pytest.LogCaptureFixture):
@@ -290,8 +291,8 @@ class TestDeleteBranch:
         mock_client = MagicMock()
         mock_client.delete.return_value = mock_resp
 
-        with caplog.at_level(logging.WARNING, logger="channel_ten.publisher"):
-            _delete_branch(mock_client, "missing-branch", token="mytoken", owner="testuser")
+        with caplog.at_level(logging.WARNING, logger="channel_ten.github"):
+            delete_branch(mock_client, "missing-branch", token="mytoken", owner="testuser")
 
         assert any("Could not delete branch" in r.message for r in caplog.records)
 
@@ -317,74 +318,12 @@ class TestBatchPRResult:
 
 
 class TestPublishAllAsSinglePr:
-    def _mock_client_responses(self, file_exists: bool = False, fork_fails: bool = False):
-        """Build a mock httpx.Client context manager with common responses."""
-        # Authenticated user
-        user_resp = MagicMock()
-        user_resp.json.return_value = {"login": "testuser"}
-        user_resp.raise_for_status = MagicMock()
-
-        # Fork
-        fork_resp = MagicMock()
-        fork_resp.raise_for_status = MagicMock()
-        if fork_fails:
-            fork_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-                "403", request=MagicMock(), response=MagicMock()
-            )
-
-        # Fork check (polling)
-        fork_check_resp = MagicMock()
-        fork_check_resp.status_code = 200
-
-        # File exists check
-        file_check_resp = MagicMock()
-        file_check_resp.status_code = 200 if file_exists else 404
-
-        # Branch SHA
-        sha_resp = MagicMock()
-        sha_resp.json.return_value = {"object": {"sha": "abc123"}}
-        sha_resp.raise_for_status = MagicMock()
-
-        # Create branch
-        branch_resp = MagicMock()
-        branch_resp.status_code = 201
-        branch_resp.raise_for_status = MagicMock()
-
-        # Put file (get existing)
-        put_get_resp = MagicMock()
-        put_get_resp.status_code = 404
-
-        # Put file (actual put)
-        put_resp = MagicMock()
-        put_resp.raise_for_status = MagicMock()
-
-        # Open PR
-        pr_resp = MagicMock()
-        pr_resp.status_code = 201
-        pr_resp.json.return_value = {"html_url": "https://github.com/GiottoVerducci/TWD/pull/99"}
-        pr_resp.raise_for_status = MagicMock()
-
-        return (
-            user_resp,
-            fork_resp,
-            fork_check_resp,
-            file_check_resp,
-            sha_resp,
-            branch_resp,
-            put_get_resp,
-            put_resp,
-            pr_resp,
-        )
-
     def test_all_skipped_returns_skipped_all(self):
         t = make_tournament()
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
-            patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=True,
-            ),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=True),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -395,7 +334,7 @@ class TestPublishAllAsSinglePr:
         t = make_tournament()
 
         err = httpx.HTTPStatusError("403", request=MagicMock(), response=MagicMock())
-        with patch("channel_ten.publisher._ensure_fork", side_effect=err):
+        with patch("channel_ten.publisher.ensure_fork", side_effect=err):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
         assert len(result.errors) == 1
@@ -404,16 +343,16 @@ class TestPublishAllAsSinglePr:
         t = make_tournament()
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file"),
             patch(
-                "channel_ten.publisher._open_pull_request",
+                "channel_ten.publisher.open_pull_request",
                 return_value="https://github.com/pr/1",
             ),
         ):
@@ -427,12 +366,9 @@ class TestPublishAllAsSinglePr:
         err = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
-            patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
-            ),
-            patch("channel_ten.publisher._get_branch_sha", side_effect=err),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -441,20 +377,16 @@ class TestPublishAllAsSinglePr:
 
     def test_put_file_http_error(self):
         t = make_tournament()
-        mock_response = MagicMock()
-        mock_response.status_code = 422
-        mock_response.text = "Unprocessable"
-        err = httpx.HTTPStatusError("422", request=MagicMock(), response=mock_response)
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=([], [("decks/9999.txt", "HTTP 422: Unprocessable")]),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -465,16 +397,13 @@ class TestPublishAllAsSinglePr:
         t = make_tournament()
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
-            ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch(
-                "channel_ten.publisher._put_file",
-                side_effect=RuntimeError("oops"),
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=([], [("decks/9999.txt", "oops")]),
             ),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
@@ -486,15 +415,15 @@ class TestPublishAllAsSinglePr:
         err = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file"),
-            patch("channel_ten.publisher._open_pull_request", side_effect=err),
+            patch("channel_ten.publisher.open_pull_request", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
 
@@ -510,16 +439,16 @@ class TestPublishAllAsSinglePr:
             return "9001" in str(path)  # t1 already exists
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", side_effect=file_exists),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                side_effect=file_exists,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9002.txt"], []),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file"),
             patch(
-                "channel_ten.publisher._open_pull_request",
+                "channel_ten.publisher.open_pull_request",
                 return_value="https://github.com/pr/1",
             ),
         ):
@@ -532,16 +461,16 @@ class TestPublishAllAsSinglePr:
         t = make_tournament()
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file"),
-            patch("channel_ten.publisher._open_pull_request") as mock_pr,
-            patch("channel_ten.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher.open_pull_request") as mock_pr,
+            patch("channel_ten.publisher.delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -555,12 +484,9 @@ class TestPublishAllAsSinglePr:
         t = make_tournament()
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
-            patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=True,
-            ),
-            patch("channel_ten.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=True),
+            patch("channel_ten.publisher.delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -569,21 +495,17 @@ class TestPublishAllAsSinglePr:
 
     def test_dry_run_all_commits_failed_deletes_branch(self):
         t = make_tournament()
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Server Error"
-        err = httpx.HTTPStatusError("500", request=MagicMock(), response=mock_response)
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=([], [("decks/9999.txt", "HTTP 500: Server Error")]),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
-            patch("channel_ten.publisher._put_file", side_effect=err),
-            patch("channel_ten.publisher._delete_branch") as mock_del,
+            patch("channel_ten.publisher.delete_branch") as mock_del,
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
 
@@ -594,7 +516,7 @@ class TestPublishAllAsSinglePr:
     def test_422_existing_pr_not_found_raises(self):
         """
         422 with 'pull request already exists'
-        but _find_existing_pr returns None → raise_for_status.
+        but find_existing_pr returns None → raise_for_status.
         """
         mock_post_resp = MagicMock()
         mock_post_resp.status_code = 422
@@ -607,45 +529,34 @@ class TestPublishAllAsSinglePr:
 
         mock_get_resp = MagicMock()
         mock_get_resp.status_code = 200
-        mock_get_resp.json.return_value = []  # _find_existing_pr returns None
+        mock_get_resp.json.return_value = []  # find_existing_pr returns None
 
         mock_client = MagicMock()
         mock_client.post.return_value = mock_post_resp
         mock_client.get.return_value = mock_get_resp
 
         with pytest.raises(httpx.HTTPStatusError):
-            _open_pull_request(mock_client, "branch", "Title", "Body", token="t")
+            open_pull_request(mock_client, "branch", "Title", "Body", token="t")
 
     def test_with_errors_in_pr_body(self):
-        """Test PR body generation when there are both published and errored decks."""
+        """Partial success: one published, one errored; PR is still opened."""
         t1 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9001")
         t2 = make_tournament(event_url="https://www.vekn.net/event-calendar/event/9002")
-        mock_response = MagicMock()
-        mock_response.status_code = 422
-        mock_response.text = "Bad"
-        err = httpx.HTTPStatusError("422", request=MagicMock(), response=mock_response)
-
-        call_count = [0]
-
-        def put_file_side_effect(*args: Any, **kwargs: Any):
-            call_count[0] += 1
-            if call_count[0] == 2:
-                raise err
 
         with (
-            patch("channel_ten.publisher._ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
             patch(
-                "channel_ten.publisher._file_exists_on_branch",
-                return_value=False,
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(
+                    ["decks/9001.txt"],
+                    [("decks/9002.txt", "HTTP 422: Bad")],
+                ),
             ),
-            patch("channel_ten.publisher._get_branch_sha", return_value="abc123"),
-            patch("channel_ten.publisher._create_branch"),
             patch(
-                "channel_ten.publisher._put_file",
-                side_effect=put_file_side_effect,
-            ),
-            patch(
-                "channel_ten.publisher._open_pull_request",
+                "channel_ten.publisher.open_pull_request",
                 return_value="https://github.com/pr/3",
             ),
         ):
@@ -657,7 +568,7 @@ class TestPublishAllAsSinglePr:
 
 
 # ---------------------------------------------------------------------------
-# _ensure_fork
+# ensure_fork
 # ---------------------------------------------------------------------------
 
 
@@ -672,7 +583,7 @@ class TestEnsureFork:
         mock_client.get.side_effect = [user_resp, fork_resp]
         mock_client.post.return_value = MagicMock()
 
-        result = _ensure_fork(mock_client, token="mytoken")
+        result = ensure_fork(mock_client, token="mytoken")
         assert result == "testuser"
 
     def test_fork_polls_until_ready(self):
@@ -687,8 +598,8 @@ class TestEnsureFork:
         mock_client.get.side_effect = [user_resp, fork_not_ready, fork_ready]
         mock_client.post.return_value = MagicMock()
 
-        with patch("channel_ten.publisher.time") as mock_time:
-            result = _ensure_fork(mock_client, token="mytoken")
+        with patch("channel_ten.github.time") as mock_time:
+            result = ensure_fork(mock_client, token="mytoken")
 
         assert result == "testuser"
         mock_time.sleep.assert_called_once_with(1)

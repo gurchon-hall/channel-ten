@@ -25,10 +25,10 @@ import httpx
 
 from channel_ten._logger import setup_logging
 from channel_ten.cli._common import SubParsersAction
-from channel_ten.cli.scrape import RouteCounters, process_tournament, route_tournament
+from channel_ten.github import post_twda_issue
 from channel_ten.output.yaml import find_existing_yaml
 from channel_ten.parser import parse_twd_text
-from channel_ten.publisher import post_twda_issue
+from channel_ten.pipeline import RouteCounters, process_tournament, route_tournament
 from channel_ten.scraper import (
     DEFAULT_DELAY_SECONDS,
     HEADERS,

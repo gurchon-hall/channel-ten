@@ -137,7 +137,7 @@ def fetch_event_name(
             logger.debug("Calendar name (h1) found: %r at %s", name, event_url)
             return name
 
-    logger.warning("Could not extract name from event page: %s", event_url)
+    logger.warning("Could not extract event title from event page: %s", event_url)
     return None
 
 
