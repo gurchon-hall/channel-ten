@@ -732,7 +732,8 @@ class TestForceDate:
         """--force-date --dry-run logs the old and new date so the change is visible."""
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
         with _patch_validate(fetch_event_date=date(2023, 3, 20), error_types=[]):
-            with caplog.at_level(logging.INFO):
-                validate_mod.run(_validate_namespace(tmp_path, dry_run=True, force_date=True))
+            with patch("channel_ten.cli.validate.setup_logging"):
+                with caplog.at_level(logging.DEBUG, logger="channel_ten"):
+                    validate_mod.run(_validate_namespace(tmp_path, dry_run=True, force_date=True))
         assert "date_start" in caplog.text
         assert "2023-03-20" in caplog.text
