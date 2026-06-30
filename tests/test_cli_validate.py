@@ -92,12 +92,14 @@ def _validate_namespace(
     dry_run: bool = False,
     full_validation: bool = False,
     errors_only: bool = False,
+    force_date: bool = False,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         twds_dir=twds_dir,
         dry_run=dry_run,
         full_validation=full_validation,
         errors_only=errors_only,
+        force_date=force_date,
         verbose=False,
     )
 
@@ -645,9 +647,7 @@ class TestValidateRunEdgeCases:
 
     def test_twda_import_file_is_validated(self, tmp_path: Path):
         """TWDA-import files (event-calendar forum_post_url) must still be validated."""
-        data = _tournament_dict(
-            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
-        )
+        data = _tournament_dict(forum_post_url="https://www.vekn.net/event-calendar/event/9999")
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
         with _patch_validate() as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
@@ -655,9 +655,7 @@ class TestValidateRunEdgeCases:
 
     def test_twda_import_file_skips_forum_rescrape(self, tmp_path: Path):
         """Forum rescrape must be skipped for TWDA-import files (no forum thread)."""
-        data = _tournament_dict(
-            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
-        )
+        data = _tournament_dict(forum_post_url="https://www.vekn.net/event-calendar/event/9999")
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
         with _patch_validate() as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
@@ -665,9 +663,7 @@ class TestValidateRunEdgeCases:
 
     def test_twda_import_file_still_checks_calendar_winner(self, tmp_path: Path):
         """Calendar winner check runs for TWDA-import files so unconfirmed_winner can clear."""
-        data = _tournament_dict(
-            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
-        )
+        data = _tournament_dict(forum_post_url="https://www.vekn.net/event-calendar/event/9999")
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
         with _patch_validate() as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
@@ -676,9 +672,7 @@ class TestValidateRunEdgeCases:
     def test_twda_import_error_file_can_be_recovered(self, tmp_path: Path):
         """A TWDA-import file in errors/ that now passes validation is promoted."""
         error_file = tmp_path / "errors" / "unconfirmed_winner" / "9999.yaml"
-        data = _tournament_dict(
-            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
-        )
+        data = _tournament_dict(forum_post_url="https://www.vekn.net/event-calendar/event/9999")
         _write_yaml(error_file, data)
         with _patch_validate(
             fetch_event_winner=("Jane Doe", 3940009),
@@ -688,3 +682,57 @@ class TestValidateRunEdgeCases:
             validate_mod.run(_validate_namespace(tmp_path, full_validation=True))
         assert not error_file.exists()
         assert (tmp_path / "2023" / "03" / "9999.yaml").exists()
+
+
+# ---------------------------------------------------------------------------
+# validate.run — --force-date flag
+# ---------------------------------------------------------------------------
+
+
+class TestForceDate:
+    def test_updates_date_start_when_mismatch(self, tmp_path: Path):
+        """--force-date overwrites date_start with the calendar date and persists it."""
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate(fetch_event_date=date(2023, 3, 20), error_types=[]):
+            validate_mod.run(_validate_namespace(tmp_path, force_date=True))
+        with open(tmp_path / "2023" / "03" / "9999.yaml", encoding="utf-8") as fh:
+            on_disk = _yaml.load(fh)  # pyright: ignore[reportUnknownMemberType]
+        assert on_disk["date_start"] == date(2023, 3, 20)
+
+    def test_no_change_when_dates_already_match(self, tmp_path: Path):
+        """--force-date must not rewrite the file when the date is already correct."""
+        original = tmp_path / "2023" / "03" / "9999.yaml"
+        _write_yaml(original, _tournament_dict())
+        mtime_before = original.stat().st_mtime
+        with _patch_validate(fetch_event_date=date(2023, 3, 25), error_types=[]):
+            validate_mod.run(_validate_namespace(tmp_path, force_date=True))
+        assert original.stat().st_mtime == mtime_before
+
+    def test_no_effect_when_calendar_date_unavailable(self, tmp_path: Path):
+        """--force-date is a no-op when fetch_event_date returns None."""
+        original = tmp_path / "2023" / "03" / "9999.yaml"
+        _write_yaml(original, _tournament_dict())
+        mtime_before = original.stat().st_mtime
+        with _patch_validate(fetch_event_date=None, error_types=[]):
+            validate_mod.run(_validate_namespace(tmp_path, force_date=True))
+        assert original.stat().st_mtime == mtime_before
+
+    def test_dry_run_does_not_write(self, tmp_path: Path):
+        """--force-date --dry-run must not touch the file on disk."""
+        original = tmp_path / "2023" / "03" / "9999.yaml"
+        _write_yaml(original, _tournament_dict())
+        mtime_before = original.stat().st_mtime
+        with _patch_validate(fetch_event_date=date(2023, 3, 20), error_types=[]):
+            validate_mod.run(_validate_namespace(tmp_path, dry_run=True, force_date=True))
+        assert original.stat().st_mtime == mtime_before
+
+    def test_dry_run_logs_the_pending_change(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        """--force-date --dry-run logs the old and new date so the change is visible."""
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate(fetch_event_date=date(2023, 3, 20), error_types=[]):
+            with caplog.at_level(logging.INFO):
+                validate_mod.run(_validate_namespace(tmp_path, dry_run=True, force_date=True))
+        assert "date_start" in caplog.text
+        assert "2023-03-20" in caplog.text

@@ -7,6 +7,8 @@ YAML files:
   2. Fetch the canonical winner name and VEKN number from the event calendar.
   3. Enrich crypt cards and fix library card sections via krcg.
   4. Fetch the official event date from the VEKN calendar for date-coherence.
+  4b. If --force-date is set and the calendar date differs from date_start,
+      overwrite date_start with the calendar date (marks file dirty).
   5. Run the full error_types() check (illegal_header, unconfirmed_winner,
      limited_format, illegal_crypt, illegal_library, too_few_players,
      incoherent_date).
@@ -42,6 +44,7 @@ from channel_ten.validator import (
     enrich_crypt_cards,
     error_types,
     fix_card_sections,
+    parse_date_field,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,6 +90,13 @@ def register(sub: SubParsersAction) -> None:
         "--dry-run",
         action="store_true",
         help="Only report; do not move or update files.",
+    )
+    p.add_argument(
+        "--force-date",
+        action="store_true",
+        default=False,
+        dest="force_date",
+        help="Overwrite date_start with the date fetched from the VEKN event calendar.",
     )
     p.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging.")
     p.set_defaults(func=run)
@@ -212,6 +222,7 @@ def run(args: argparse.Namespace) -> int:
     errors_only: bool = args.errors_only
     twds_dir: Path = args.twds_dir
     dry_run: bool = args.dry_run
+    force_date: bool = args.force_date
 
     moved: list[Path] = []
     updated: list[Path] = []
@@ -293,11 +304,33 @@ def run(args: argparse.Namespace) -> int:
 
             # Step 4: fetch official event date for date-coherence check
             calendar_date = None
-            if event_url and not dry_run:
+            # --force-date needs the calendar date even in dry-run to report what would change.
+            if event_url and (not dry_run or force_date):
                 try:
                     calendar_date = fetch_event_date(client, event_url)
                 except Exception as exc:
                     logger.error("calendar date error for %s: %s", path.name, exc)
+
+            # Step 4b: force-update date_start from calendar if requested
+            if force_date and calendar_date is not None:
+                file_date = parse_date_field(data.get("date_start"))
+                if file_date != calendar_date:
+                    if dry_run:
+                        logger.debug(
+                            "[dry-run] would update %s date_start: %s → %s",
+                            path.name,
+                            file_date,
+                            calendar_date,
+                        )
+                    else:
+                        data["date_start"] = calendar_date
+                        dirty = True
+                        logger.debug(
+                            "%s  date_start updated: %s → %s",
+                            path.name,
+                            file_date,
+                            calendar_date,
+                        )
 
             # Step 5: full validation
             errors = error_types(data, calendar_date=calendar_date)

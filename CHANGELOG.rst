@@ -63,6 +63,13 @@ Changed
 Added (card ID / validation, continued)
 ----------------------------------------
 
+- ``--force-date`` flag on the ``validate`` subcommand: when set, ``date_start``
+  in each YAML file is overwritten with the official date fetched from the VEKN
+  event calendar when the two differ.  Resolves ``incoherent_date`` errors
+  caused by a wrong date in the source file (e.g. copy-paste from a different
+  event).  Combines correctly with ``--dry-run``, which logs the pending change
+  without writing to disk.  The calendar date is fetched even in dry-run mode
+  when this flag is active so the report is complete.
 - ``--errors-only`` flag on the ``validate`` subcommand: when set, only files
   under ``twds/errors/`` are processed (instead of the full published tree or
   the most-recent-25 fast path).  Useful for quickly checking whether
