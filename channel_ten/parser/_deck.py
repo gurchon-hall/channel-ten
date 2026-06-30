@@ -73,6 +73,13 @@ def parse_deck_block(lines: list[str]) -> Deck:
             idx += 1
             continue
         crypt_card = helpers.parsers.parse_crypt_line(line)
+        if not crypt_card and idx + 1 < n:
+            next_line = lines[idx + 1].strip()
+            if helpers.regex.CRYPT_CONTINUATION_RE.match(next_line):
+                joined = line.rstrip() + " " + next_line
+                crypt_card = helpers.parsers.parse_crypt_line(joined)
+                if crypt_card:
+                    idx += 1
         if crypt_card:
             crypt_cards.append(crypt_card)
         idx += 1

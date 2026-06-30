@@ -235,18 +235,16 @@ def run(args: argparse.Namespace) -> int:
 
             data: dict[str, Any] = cast(dict[str, Any], raw)
 
-            # TWDA-imported files have no forum thread: forum_post_url is set
-            # to the event-calendar URL as a fallback. Skip them here — the
-            # import command is the right tool to refresh these from the archive.
             forum_post_url: str = data.get("forum_post_url") or ""
-            if "/event-calendar/" in forum_post_url:
-                logger.debug("skipping %s (TWDA import, no forum thread)", path.name)
-                continue
+            # TWDA-imported files use an event-calendar URL as forum_post_url;
+            # they have no forum thread to rescrape.  Calendar winner check,
+            # enrichment, and re-validation still run so errors can be resolved.
+            is_twda_import = "/event-calendar/" in forum_post_url
 
             dirty = False
 
             # Step 1: rescrape the forum post for fresh tournament data
-            if forum_post_url and not dry_run:
+            if forum_post_url and not dry_run and not is_twda_import:
                 try:
                     fresh = extract_twd_from_thread(
                         client, forum_post_url, delay=DEFAULT_DELAY_SECONDS

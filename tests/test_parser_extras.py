@@ -211,6 +211,23 @@ class TestParseCryptLine:
         assert card is not None
         assert card.name == "Tariq (ADV)"
 
+    def test_count_without_x(self):
+        card = parsers.parse_crypt_line("2 Nathan Turner 4 PRO ani Gangrel:6")
+        assert card is not None
+        assert card.count == 2
+        assert card.name == "Nathan Turner"
+
+    def test_count_space_before_x(self):
+        card = parsers.parse_crypt_line("1 x Nathan Turner 4 PRO ani Gangrel:6")
+        assert card is not None
+        assert card.count == 1
+        assert card.name == "Nathan Turner"
+
+    def test_grouping_space_after_colon(self):
+        card = parsers.parse_crypt_line("2x Nathan Turner 4 PRO ani Gangrel: 6")
+        assert card is not None
+        assert card.grouping == 6
+
 
 class TestParseLibraryLine:
     def test_valid_line(self):
@@ -451,3 +468,74 @@ class TestLenientMissingFields:
     def test_raises_when_too_many_fields_missing(self):
         with pytest.raises(ValueError):
             parse_twd_text(INCOMPLETE)
+
+
+# ---------------------------------------------------------------------------
+# Crypt entries with clan wrapped to the next line
+# ---------------------------------------------------------------------------
+
+_HEADER = """\
+Conservative Agitation
+Vila Velha, Brazil
+October 1st 2016
+2R+F
+12 players
+Ravel Zorzal
+https://www.vekn.net/event-calendar/event/8470
+
+"""
+
+CRYPT_WRAPPED_CLAN = (
+    _HEADER
+    + """\
+Crypt (3 cards, min=4, max=6, avg=4.67)
+-----------------------------------------
+1x Nathan Turner 4 PRO ani
+Gangrel:6
+2x Lolita Houston 4 VIC aus Tzimisce:2
+
+Library (1 cards)
+Master (1)
+1x Blood Doll
+"""
+)
+
+CRYPT_WRAPPED_CLAN_SPACE_COLON = (
+    _HEADER
+    + """\
+Crypt (1 cards, min=8, max=8, avg=8)
+--------------------------------------
+1x Devin Bisley 8 ANI AUS vic
+Tzimisce: 2
+
+Library (1 cards)
+Master (1)
+1x Blood Doll
+"""
+)
+
+
+class TestCryptWrappedClan:
+    def test_clan_on_next_line(self):
+        t = parse_twd_text(CRYPT_WRAPPED_CLAN)
+        assert t.deck
+        assert len(t.deck.crypt) == 2
+        nathan = next(c for c in t.deck.crypt if c.name == "Nathan Turner")
+        assert nathan.clan == "Gangrel"
+        assert nathan.grouping == 6
+
+    def test_non_wrapped_card_unaffected(self):
+        t = parse_twd_text(CRYPT_WRAPPED_CLAN)
+        assert t.deck
+        lolita = next(c for c in t.deck.crypt if c.name == "Lolita Houston")
+        assert lolita.count == 2
+        assert lolita.clan == "Tzimisce"
+
+    def test_wrapped_clan_with_space_after_colon(self):
+        t = parse_twd_text(CRYPT_WRAPPED_CLAN_SPACE_COLON)
+        assert t.deck
+        assert len(t.deck.crypt) == 1
+        card = t.deck.crypt[0]
+        assert card.name == "Devin Bisley"
+        assert card.clan == "Tzimisce"
+        assert card.grouping == 2

@@ -642,3 +642,49 @@ class TestValidateRunEdgeCases:
         with _patch_validate(fetch_event_winner=None) as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
         mocks["fetch_player"].assert_not_called()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_twda_import_file_is_validated(self, tmp_path: Path):
+        """TWDA-import files (event-calendar forum_post_url) must still be validated."""
+        data = _tournament_dict(
+            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
+        )
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["error_types"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_twda_import_file_skips_forum_rescrape(self, tmp_path: Path):
+        """Forum rescrape must be skipped for TWDA-import files (no forum thread)."""
+        data = _tournament_dict(
+            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
+        )
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["extract_twd_from_thread"].assert_not_called()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_twda_import_file_still_checks_calendar_winner(self, tmp_path: Path):
+        """Calendar winner check runs for TWDA-import files so unconfirmed_winner can clear."""
+        data = _tournament_dict(
+            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
+        )
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["fetch_event_winner"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_twda_import_error_file_can_be_recovered(self, tmp_path: Path):
+        """A TWDA-import file in errors/ that now passes validation is promoted."""
+        error_file = tmp_path / "errors" / "unconfirmed_winner" / "9999.yaml"
+        data = _tournament_dict(
+            forum_post_url="https://www.vekn.net/event-calendar/event/9999"
+        )
+        _write_yaml(error_file, data)
+        with _patch_validate(
+            fetch_event_winner=("Jane Doe", 3940009),
+            fetch_player=("Jane Doe", 3940009),
+            error_types=[],
+        ):
+            validate_mod.run(_validate_namespace(tmp_path, full_validation=True))
+        assert not error_file.exists()
+        assert (tmp_path / "2023" / "03" / "9999.yaml").exists()

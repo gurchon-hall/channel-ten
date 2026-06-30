@@ -18,14 +18,18 @@ class ParserRegex:
     LIBRARY_HEADER_RE = re.compile(r"Library\s*\((?P<count>\d+)\s*cards?\)")
 
     # Regex for crypt line parsing (handles both compact and column-aligned formats):
-    #   <Qty>x <Name> <Capacity>( <discipline:3chars>)+ <Clan>:<grouping>
+    #   <Qty>[x] <Name> <Capacity>( <discipline:3chars>)+ <Clan>[: ]<grouping>
+    # The leading "x" suffix and any space before it are optional ("2 Name", "1 x Name").
     CRYPT_LINE_RE = re.compile(
-        r"^(?P<count>\d+)x\s+"
+        r"^(?P<count>\d+)\s*x?\s+"
         r"(?P<name>.+?)\s+"
         r"(?P<capacity>\d{1,2})"
         r"(?P<disciplines>(?:\s+[a-zA-Z]{3})*)\s+"
-        r"(?P<clan>[^:]+):(?P<grouping>\d+|[Aa][Nn][Yy])\s*$"
+        r"(?P<clan>[^:]+):\s*(?P<grouping>\d+|[Aa][Nn][Yy])\s*$"
     )
+    # A bare "Clan:N" (or "Clan: N") line — used to detect wrapped crypt entries
+    # where the clan was pushed to the next line by the forum renderer.
+    CRYPT_CONTINUATION_RE = re.compile(r"^[A-Za-z][^:]*:\s*(\d+|[Aa][Nn][Yy])\s*$")
     LIBRARY_LINE_RE = re.compile(r"^(?P<count>\d+)x\s+(?P<name>.+)$")
     SECTION_HEADER_RE = re.compile(r"^(?P<name>[A-Za-z /,()]+)\s*\((?P<count>\d+).*\)$")
 

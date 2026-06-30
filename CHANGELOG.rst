@@ -135,6 +135,14 @@ Changed
   CLI via ``uv run --project`` instead of a bare ``uv run``, ensuring the
   correct project environment is resolved when the working directory is a
   sibling checkout.
+- Crypt-line regex in ``parser/_helpers.py``: count prefix now accepts all
+  three quantity spellings seen on the forum — ``Nx`` (e.g. ``3x``), ``N x``
+  (space before the ``x``), and a bare ``N`` with no ``x`` at all.  The
+  grouping separator now also tolerates a space after the colon (``Clan: N``).
+- ``parser/_deck.py`` crypt loop: when a line fails to parse and the next
+  non-empty line looks like a bare ``Clan:N`` continuation, the two lines are
+  joined before retrying.  This handles forum posts where the clan name wraps
+  to a new line.
 
 Fixed
 -----
