@@ -696,14 +696,14 @@ class TestFetchEventWinner:
                 "https://www.vekn.net/event-calendar/event/99",
                 delay=0,
             )
-        assert result == "Alice Champion"
+        assert result == ("Alice Champion", None)
 
     def test_accepts_rank_column_header(self):
         soup = BeautifulSoup(EVENT_WITH_RANK_COLUMN_HTML, "lxml")
         mock_client = MagicMock()
         with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
             result = fetch_event_winner(mock_client, "https://example.com", delay=0)
-        assert result == "Diana Winner"
+        assert result == ("Diana Winner", None)
 
     def test_no_standings_table_returns_none(self):
         soup = BeautifulSoup(EVENT_NO_STANDINGS_HTML, "lxml")
@@ -725,6 +725,25 @@ class TestFetchEventWinner:
         with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
             result = fetch_event_winner(mock_client, "https://example.com", delay=0)
         assert result is None
+
+    def test_extracts_vekn_id_from_player_link(self):
+        html = """
+        <html><body>
+        <table>
+          <tr><th>Pos.</th><th>Player</th><th>VPs</th></tr>
+          <tr>
+            <td><div class="playerpos">1</div></td>
+            <td><a href="/event-calendar/player/5920001">Alex Romano</a></td>
+            <td>5</td>
+          </tr>
+        </table>
+        </body></html>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = fetch_event_winner(mock_client, "https://example.com", delay=0)
+        assert result == ("Alex Romano", 5920001)
 
 
 # ---------------------------------------------------------------------------

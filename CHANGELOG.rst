@@ -136,6 +136,25 @@ Changed
   correct project environment is resolved when the working directory is a
   sibling checkout.
 
+Fixed
+-----
+
+- ``fetch_event_winner`` now returns ``tuple[str, int | None] | None`` instead of
+  ``str | None``.  The VEKN ID is extracted from the ``/event-calendar/player/<id>``
+  href in the winner's standings-table cell, so the player-registry lookup
+  (``fetch_player``) is bypassed when the ID is already available.  This prevents
+  ``unconfirmed_winner`` from being set for events whose standings are published but
+  whose winner name is ambiguous in the VEKN registry (e.g. two registered players
+  sharing the same name).
+- ``unconfirmed_winner`` is now set only when the event calendar page has no standings
+  table at all.  Previously it was also triggered when ``fetch_player`` returned
+  ``None`` due to name ambiguity, even though the winner's identity was known from
+  the standings link.
+- ``fetch_event_name`` warning log message changed from
+  ``"Could not extract name from event page"`` to
+  ``"Could not extract event title from event page"`` to avoid confusion with player
+  name extraction.
+
 ----
 
 v0.8.0 — 2026-06-29

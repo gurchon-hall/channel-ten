@@ -174,9 +174,15 @@ def _check_and_update_winner(
     """
     dirty = False
 
-    calendar_winner = fetch_event_winner(client, event_url, delay)
+    winner_result = fetch_event_winner(client, event_url, delay)
+    if winner_result is None:
+        return dirty
+    calendar_winner, calendar_vekn_id = winner_result
     if calendar_winner and calendar_winner != data.get("winner"):
         data["winner"] = calendar_winner
+        dirty = True
+    if calendar_vekn_id is not None and data.get("vekn_number") is None:
+        data["vekn_number"] = calendar_vekn_id
         dirty = True
 
     winner: str = data.get("winner") or ""

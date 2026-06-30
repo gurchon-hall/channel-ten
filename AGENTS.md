@@ -89,6 +89,8 @@ A commit must pass all five before merging. There are no exceptions.
 - [ ] Network or filesystem tests marked `@pytest.mark.integration`.
 - [ ] `ruff check --fix && ruff format` passes locally.
 - [ ] `ty check channel_ten/` passes locally (see `[tool.ty]` in `pyproject.toml`).
+- [ ] `CLAUDE.md`, `AGENTS.md`, and any relevant file under `docs/` updated to reflect
+  the change — API contracts, pitfalls, pipeline steps, or "What not to do" rules.
 
 ### Layer contracts
 
@@ -116,6 +118,12 @@ No imports from `cli/`, no I/O, no side effects.
 - **Grouping rule**: all non-ANY crypt card groups must form a set of at most 2 consecutive
   integers. The `_pick_best_crypt_version` helper in `validator.py` encodes this logic; do
   not reimplement it elsewhere.
+- **`fetch_event_winner` return type**: this function returns `tuple[str, int | None] | None`,
+  not a plain string. The tuple carries `(winner_name, vekn_id)` where `vekn_id` is parsed
+  from the player's profile link in the standings table. Callers unpack the tuple; test mocks
+  must return a tuple or `None`. Returning a plain string will raise `TypeError` at unpack.
+  `unconfirmed_winner` is set only when the function returns `None` (standings absent), not
+  when the player-registry lookup is ambiguous. See `docs/player_name_extraction.md`.
 
 ---
 

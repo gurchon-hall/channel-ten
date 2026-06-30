@@ -164,7 +164,7 @@ class TestScrapeRun:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner="Jane Doe",
+                fetch_event_winner=("Jane Doe", None),
             ):
                 with patch(
                     "channel_ten.pipeline.write_tournament_yaml",
@@ -257,7 +257,7 @@ class TestScrapeRun:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner="Calendar Winner",
+                fetch_event_winner=("Calendar Winner", None),
             ):
                 scrape_cmd.run(args)
             written = list(Path(tmpdir).rglob("*.yaml"))
@@ -301,7 +301,7 @@ class TestScrapeRun:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner="Jane Doe",
+                fetch_event_winner=("Jane Doe", None),
                 error_types=[],
             ):
                 ret = scrape_cmd.run(args)
@@ -357,7 +357,7 @@ class TestScrapeInternalPaths:
         client = MagicMock()
         with patch(
             "channel_ten.pipeline.fetch_event_winner",
-            return_value="New Winner",
+            return_value=("New Winner", None),
         ):
             result, missing = pipeline_cmd._check_calendar_winner(  # pyright: ignore[reportPrivateUsage]
                 client,
@@ -521,7 +521,7 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, ICON_MERGED)]),
-                fetch_event_winner=t.winner,  # avoids calendar_winner_missing=True
+                fetch_event_winner=(t.winner, None),  # avoids calendar_winner_missing=True
                 error_types=[],
             ):
                 ret = scrape_cmd.run(args)
@@ -538,7 +538,7 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, ICON_MERGED)]),
-                fetch_event_winner=t.winner,
+                fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
                 with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
@@ -569,7 +569,7 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner=t.winner,
+                fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
                 ret = scrape_cmd.run(args)
@@ -583,13 +583,13 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(output_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner=t.winner,
+                fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
                 scrape_cmd.run(args)
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
-                fetch_event_winner=t.winner,
+                fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
                 ret = scrape_cmd.run(args)

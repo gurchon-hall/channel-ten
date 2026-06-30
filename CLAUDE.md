@@ -126,6 +126,13 @@ Rules:
 - Use `conftest.py` factories (`make_tournament`, etc.) rather than constructing fixtures inline.
 - No `print()` in tests; use `caplog` if you need to assert on log output.
 
+After every non-trivial change, update documentation:
+
+- `CLAUDE.md` — add or amend "What not to do" rules or project-level notes.
+- `AGENTS.md` — add or amend the change checklist, common pitfalls, or layer contracts.
+- `docs/` — update or create a topic document when the change affects an API contract,
+  a pipeline step, or a non-obvious behaviour that future contributors need to know.
+
 ---
 
 ## What not to do
@@ -138,3 +145,7 @@ Rules:
 - Do not add `# type: ignore` without a comment explaining why.
 - Do not write comments that restate the code (`# sort cards`, `# return result`).
 - Do not use `typing.List`, `typing.Dict`, `typing.Optional` — use the builtin forms.
+- Do not change `fetch_event_winner` to return a plain `str` — it returns
+  `tuple[str, int | None] | None`. The VEKN ID must be extracted from the standings
+  link so ambiguous name lookups in the player registry are bypassed. See
+  `docs/player_name_extraction.md`.

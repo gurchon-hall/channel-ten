@@ -52,7 +52,7 @@ def _patch_pipeline_externals(winner: str = "Pedro Millán Monje", errors: list[
     """
     with (
         patch("channel_ten.pipeline.fetch_event_name", return_value=None),
-        patch("channel_ten.pipeline.fetch_event_winner", return_value=winner),
+        patch("channel_ten.pipeline.fetch_event_winner", return_value=(winner, None)),
         patch("channel_ten.pipeline.fetch_event_date", return_value=None),
         patch("channel_ten.pipeline.fetch_player", return_value=None),
         patch("channel_ten.pipeline.enrich_crypt_cards", return_value=[]),

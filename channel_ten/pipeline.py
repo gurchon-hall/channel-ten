@@ -84,10 +84,12 @@ def _check_calendar_winner(
     if not tournament.event_url:
         return tournament, False
     try:
-        calendar_winner = fetch_event_winner(client, tournament.event_url, delay=delay)
-        if calendar_winner is None:
+        result = fetch_event_winner(client, tournament.event_url, delay=delay)
+        if result is None:
             logger.debug("No results data on event page: %s", tournament.event_url)
             return tournament, True
+        calendar_winner, calendar_vekn_id = result
+        updates: dict[str, object] = {}
         if calendar_winner != tournament.winner:
             logger.debug(
                 "Calendar winner override: %r → %r  (%s)",
@@ -95,7 +97,11 @@ def _check_calendar_winner(
                 calendar_winner,
                 tournament.event_url,
             )
-            return tournament.model_copy(update={"winner": calendar_winner}), False
+            updates["winner"] = calendar_winner
+        if calendar_vekn_id is not None and tournament.vekn_number is None:
+            updates["vekn_number"] = calendar_vekn_id
+        if updates:
+            return tournament.model_copy(update=updates), False
     except Exception as exc:
         logger.warning(
             "Could not fetch calendar winner for %s: %s",

@@ -145,13 +145,15 @@ def fetch_event_winner(
     client: httpx.Client,
     event_url: str,
     delay: float = DEFAULT_DELAY_SECONDS,
-) -> str | None:
+) -> tuple[str, int | None] | None:
     """
     Fetch the winner from a VEKN event calendar page.
 
     Looks for a standings/results table whose header contains a position column
     (``Pos.``, ``Pos``, ``Rank``, ``#``) and a player column (``Player``).
-    Returns the player name at position ``1``, or ``None`` if not found.
+    Returns ``(player_name, vekn_id)`` for the player at position ``1``, where
+    ``vekn_id`` is extracted from the player's profile link href when present.
+    Returns ``None`` if no standings table is found.
     """
     soup = get_soup(client, event_url, delay)
 
@@ -188,8 +190,19 @@ def fetch_event_winner(
             if pos_text == "1":
                 player = cells[player_col].get_text(strip=True)
                 if player:
-                    logger.debug("Calendar winner found: %r at %s", player, event_url)
-                    return player
+                    vekn_id: int | None = None
+                    link = cells[player_col].find("a")
+                    if link:
+                        m = re.search(r"/player/(\d+)$", str(link.get("href", "")))
+                        if m:
+                            vekn_id = int(m.group(1))
+                    logger.debug(
+                        "Calendar winner found: %r (VEKN %s) at %s",
+                        player,
+                        vekn_id,
+                        event_url,
+                    )
+                    return player, vekn_id
 
     logger.debug("No winner table found in event page: %s", event_url)
     return None

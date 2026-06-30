@@ -228,7 +228,7 @@ class TestCheckAndUpdateWinner:
         data = _tournament_dict(winner="Old Name")
         client = self._client()
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="Calendar Name"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("Calendar Name", None)),
             patch.object(validate_mod, "fetch_player", return_value=("Calendar Name", 1234567)),
         ):
             dirty = _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -240,7 +240,7 @@ class TestCheckAndUpdateWinner:
         data = _tournament_dict(winner="Jane Doe", vekn_number=None)
         client = self._client()
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="Jane Doe"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("Jane Doe", None)),
             patch.object(validate_mod, "fetch_player", return_value=("Jane Doe", 3940009)),
         ):
             dirty = _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -252,7 +252,7 @@ class TestCheckAndUpdateWinner:
         data = _tournament_dict(winner="jane doe", vekn_number=None)
         client = self._client()
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="jane doe"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("jane doe", None)),
             patch.object(validate_mod, "fetch_player", return_value=("Jane Doe", 3940009)),
         ):
             _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -262,7 +262,7 @@ class TestCheckAndUpdateWinner:
         data = _tournament_dict(winner="Jane Doe", vekn_number=3940009)
         client = self._client()
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="Jane Doe"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("Jane Doe", None)),
             patch.object(validate_mod, "fetch_player", return_value=("Jane Doe", 3940009)),
         ):
             dirty = _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -282,7 +282,7 @@ class TestCheckAndUpdateWinner:
         data = _tournament_dict(winner="Jane Doe", vekn_number=None)
         client = self._client()
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="Jane Doe"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("Jane Doe", None)),
             patch.object(validate_mod, "fetch_player", return_value=None),
         ):
             dirty = _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -295,7 +295,7 @@ class TestCheckAndUpdateWinner:
         client = self._client()
         mock_player = MagicMock(return_value=("Calendar Name", 9999999))
         with (
-            patch.object(validate_mod, "fetch_event_winner", return_value="Calendar Name"),
+            patch.object(validate_mod, "fetch_event_winner", return_value=("Calendar Name", None)),
             patch.object(validate_mod, "fetch_player", mock_player),
         ):
             _check_and_update_winner(client, data, "https://example.com/event/1")
@@ -362,7 +362,7 @@ class TestValidateRunScraperInteraction:
 
     def test_fetch_player_called_after_calendar_winner(self, tmp_path: Path):
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
-        with _patch_validate(fetch_event_winner="Jane Doe") as mocks:
+        with _patch_validate(fetch_event_winner=("Jane Doe", None)) as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
         mocks["fetch_player"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
         assert (
@@ -538,7 +538,7 @@ class TestValidateRunValidatorInteraction:
         """When the calendar returns a different winner name, it is persisted."""
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict(winner="Old Name"))
         with _patch_validate(
-            fetch_event_winner="Calendar Winner",
+            fetch_event_winner=("Calendar Winner", None),
             fetch_player=("Calendar Winner", 3940009),
             error_types=[],
         ):
@@ -551,7 +551,7 @@ class TestValidateRunValidatorInteraction:
         """When vekn_number is resolved from the player registry, it is persisted."""
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict(vekn_number=None))
         with _patch_validate(
-            fetch_event_winner="Jane Doe",
+            fetch_event_winner=("Jane Doe", None),
             fetch_player=("Jane Doe", 3940009),
             error_types=[],
         ):
