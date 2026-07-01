@@ -12,6 +12,30 @@ starting from v0.1.0.
 
 ----
 
+v0.9.1 — 2026-07-01
+====================
+
+CI hotfix: the ``publish`` and ``validate`` workflows were failing with
+``command not found`` (missing ``uv run`` wrapper), and ``scrape`` /
+``twda-reimport`` were failing with "unrecognized arguments" (stale
+``--output-dir`` flag left over from the v0.9.0 rename).
+
+Fixed
+-----
+
+- ``.github/workflows/publish.yml`` and ``validate.yml``: the ``channel-ten
+  publish`` / ``channel-ten validate`` invocations ran the bare command
+  instead of ``uv run --project ./channel-ten channel-ten ...``.  ``uv sync``
+  only creates the venv at ``channel-ten/.venv``; without the wrapper the
+  ``channel-ten`` binary is not on ``PATH`` and the step fails with
+  ``command not found``.
+- ``.github/workflows/scrape.yml`` and ``twda-reimport.yml``: still passed
+  the removed ``--output-dir`` flag instead of ``--twds-dir`` (see the
+  v0.9.0 flag rename), which would fail with "unrecognized arguments" on
+  their next scheduled run.
+
+----
+
 v0.9.0 — 2026-07-01
 ====================
 

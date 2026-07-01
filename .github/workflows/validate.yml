@@ -63,7 +63,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.full_validation }}" == "true" ]]; then
             FLAGS="$FLAGS --full-validation"
           fi
-          channel-ten validate $FLAGS
+          uv run --project ./channel-ten channel-ten validate $FLAGS
 
       - name: Check for changes
         id: git_status

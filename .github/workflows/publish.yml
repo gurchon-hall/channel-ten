@@ -63,7 +63,7 @@ jobs:
           # and opens a PR from the fork â€” no direct write access to that repo needed.
           # The token's user must have repo-creation permission in gurchon-hall.
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: channel-ten publish --twds-dir eternal-vigilance --verbose
+        run: uv run --project ./channel-ten channel-ten publish --twds-dir eternal-vigilance --verbose
 
       - name: Commit publish report
         working-directory: eternal-vigilance
