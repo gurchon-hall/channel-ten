@@ -40,11 +40,11 @@ def register(sub: SubParsersAction) -> None:
         help="Path to a .txt or .yaml file. Direction is inferred from the extension.",
     )
     p.add_argument(
-        "--output-dir",
+        "--twds-dir",
         "-o",
         type=Path,
         default=None,
-        dest="output_dir",
+        dest="twds_dir",
         help="Directory to write the output file. If omitted, prints to stdout.",
     )
     p.add_argument("--overwrite", action="store_true")
@@ -61,11 +61,11 @@ def _parse_txt_to_yaml(args: argparse.Namespace) -> int:
         logger.error("parse error: %s", exc)
         return 1
 
-    if args.output_dir is None:
+    if args.twds_dir is None:
         sys.stdout.write(tournament_to_yaml_str(tournament))
     else:
         try:
-            path = write_tournament_yaml(tournament, args.output_dir, overwrite=args.overwrite)
+            path = write_tournament_yaml(tournament, args.twds_dir, overwrite=args.overwrite)
             logger.info("written to %s", path)
         except FileExistsError as exc:
             logger.warning("%s", exc)
@@ -84,11 +84,11 @@ def _parse_yaml_to_txt(args: argparse.Namespace) -> int:
         logger.error("parse error: %s", exc)
         return 1
 
-    if args.output_dir is None:
+    if args.twds_dir is None:
         sys.stdout.write(tournament_to_txt(tournament) + "\n")
     else:
         try:
-            path = write_tournament_txt(tournament, args.output_dir, overwrite=args.overwrite)
+            path = write_tournament_txt(tournament, args.twds_dir, overwrite=args.overwrite)
             logger.info("written to %s", path)
         except FileExistsError as exc:
             logger.warning("%s", exc)

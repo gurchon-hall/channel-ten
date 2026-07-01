@@ -47,10 +47,10 @@ channel-ten scrape --start-page 5 --last-page 6
 channel-ten scrape --overwrite
 
 # Write output to a custom directory (e.g. a local clone of eternal-vigilance)
-channel-ten scrape --output-dir ../eternal-vigilance
+channel-ten scrape --twds-dir ../eternal-vigilance
 
 # Import TWDs from GiottoVerducci/TWD that are not already in the base
-channel-ten import --output-dir ../eternal-vigilance
+channel-ten import --twds-dir ../eternal-vigilance
 
 # Use a token (raises the GitHub deck-listing rate limit) and cap the run for testing
 GITHUB_TOKEN=ghp_xxx channel-ten import --limit 5
@@ -59,7 +59,7 @@ GITHUB_TOKEN=ghp_xxx channel-ten import --limit 5
 channel-ten parse decks/8470.txt
 
 # Parse a .txt file and write YAML to a directory
-channel-ten parse decks/8470.txt --output-dir twds
+channel-ten parse decks/8470.txt --twds-dir twds
 
 # Convert a YAML file back to .txt (prints to stdout)
 channel-ten parse twds/2023/03/9999.yaml

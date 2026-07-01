@@ -31,7 +31,7 @@ Master (1)
 
 def _import_namespace(**kwargs: Any) -> argparse.Namespace:
     defaults = dict(
-        output_dir=Path("twds"),
+        twds_dir=Path("twds"),
         delay=0,
         overwrite=False,
         github_token=None,
@@ -92,7 +92,7 @@ class TestImportCommand:
 class TestImportRun:
     def test_imports_new_deck(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt", return_value=VALID_TWD),
@@ -107,7 +107,7 @@ class TestImportRun:
     def test_forum_post_url_defaults_to_event_url(self):
         """Imports have no forum thread; forum_post_url must fall back to event_url."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt", return_value=VALID_TWD),
@@ -125,7 +125,7 @@ class TestImportRun:
             existing.parent.mkdir(parents=True)
             existing.write_text("name: already here\n", encoding="utf-8")
 
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt") as mock_fetch,
@@ -142,7 +142,7 @@ class TestImportRun:
             existing.parent.mkdir(parents=True)
             existing.write_text("name: errored\n", encoding="utf-8")
 
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt") as mock_fetch,
@@ -154,7 +154,7 @@ class TestImportRun:
 
     def test_404_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt", return_value=None),
@@ -166,7 +166,7 @@ class TestImportRun:
 
     def test_parse_error_counts_as_failure(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt", return_value="garbage"),
@@ -177,7 +177,7 @@ class TestImportRun:
 
     def test_validation_errors_route_to_errors_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with (
                 patch("channel_ten.cli.reimport.list_twda_event_ids", return_value=[9999]),
                 patch("channel_ten.cli.reimport.fetch_twda_txt", return_value=VALID_TWD),
@@ -189,7 +189,7 @@ class TestImportRun:
 
     def test_limit_caps_imports(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir), limit=1)
+            args = _import_namespace(twds_dir=Path(tmpdir), limit=1)
             with (
                 patch(
                     "channel_ten.cli.reimport.list_twda_event_ids",
@@ -205,7 +205,7 @@ class TestImportRun:
 
     def test_rate_limit_returns_one(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with patch(
                 "channel_ten.cli.reimport.list_twda_event_ids",
                 side_effect=RuntimeError("rate limit exceeded"),
@@ -216,7 +216,7 @@ class TestImportRun:
     def test_token_falls_back_to_env(self, monkeypatch: Any):
         monkeypatch.setenv("GITHUB_TOKEN", "env_tok")
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _import_namespace(output_dir=Path(tmpdir))
+            args = _import_namespace(twds_dir=Path(tmpdir))
             with patch(
                 "channel_ten.cli.reimport.list_twda_event_ids", return_value=[]
             ) as mock_list:

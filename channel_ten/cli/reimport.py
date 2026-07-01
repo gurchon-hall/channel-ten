@@ -54,7 +54,7 @@ def register(sub: SubParsersAction) -> None:
         "-o",
         type=Path,
         default=Path("twds"),
-        dest="output_dir",
+        dest="twds_dir",
         help=(
             "Base directory; new decks are written to <dir>/YYYY/MM/<event_id>.yaml. "
             "Existing ids anywhere under this tree are skipped. (default: twds)"
@@ -111,7 +111,7 @@ def run(args: argparse.Namespace) -> int:
     setup_logging(args.verbose)
 
     token = args.github_token or os.environ.get("GITHUB_TOKEN") or None
-    output_dir: Path = args.output_dir
+    output_dir: Path = args.twds_dir
     counters = RouteCounters()
     failures: list[tuple[int, str]] = []
 

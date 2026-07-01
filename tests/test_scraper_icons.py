@@ -200,7 +200,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -220,7 +220,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -249,7 +249,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -282,7 +282,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -316,7 +316,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -325,10 +325,10 @@ class TestScrapeCliRouting:
         )
         written_paths: list[Path] = []
 
-        def _fake_to_yaml(tournament: Tournament, output_dir: Path, **kwargs: Any) -> Path:
+        def _fake_to_yaml(tournament: Tournament, twds_dir: Path, **kwargs: Any) -> Path:
             return _capture(
                 written_paths,
-                output_dir / "fake" / tournament.yaml_filename,
+                twds_dir / "fake" / tournament.yaml_filename,
             )
 
         with (
@@ -352,7 +352,7 @@ class TestScrapeCliRouting:
         normal_path = tmp_path / "2023" / "01" / "8020.yaml"
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -378,7 +378,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -405,7 +405,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -428,7 +428,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,
@@ -450,7 +450,7 @@ class TestScrapeCliRouting:
         scrape_mod = _scrape_mod
 
         args = argparse.Namespace(
-            output_dir=tmp_path,
+            twds_dir=tmp_path,
             start_page=0,
             last_page=None,
             delay=0,

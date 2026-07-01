@@ -49,6 +49,10 @@ Added
 Changed
 -------
 
+- ``--output-dir`` / ``-o`` flag renamed to ``--twds-dir`` on the ``scrape``,
+  ``parse``, and ``reimport`` subcommands, and on
+  ``scripts/single_url_full_pipeline.py``.  The ``dest`` attribute is likewise
+  renamed from ``output_dir`` to ``twds_dir`` for consistency.
 - ``cli/scrape.py`` is now a pure CLI entry point: argument registration and
   ``run()`` wiring only.  All pipeline helpers moved to ``channel_ten/pipeline.py``.
 - ``cli/reimport.py`` now imports ``RouteCounters``, ``process_tournament``,

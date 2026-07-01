@@ -49,7 +49,7 @@ class TestParseCommand:
 
         args = argparse.Namespace(
             input_file=tmpfile,
-            output_dir=None,
+            twds_dir=None,
             overwrite=False,
             verbose=False,
         )
@@ -57,7 +57,7 @@ class TestParseCommand:
         assert ret == 0
         tmpfile.unlink()
 
-    def test_run_with_output_dir(self):
+    def test_run_with_twds_dir(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(SIMPLE_TWD)
             tmpfile = Path(f.name)
@@ -65,7 +65,7 @@ class TestParseCommand:
         with tempfile.TemporaryDirectory() as tmpdir:
             args = argparse.Namespace(
                 input_file=tmpfile,
-                output_dir=Path(tmpdir),
+                twds_dir=Path(tmpdir),
                 overwrite=False,
                 verbose=False,
             )
@@ -81,7 +81,7 @@ class TestParseCommand:
 
         args = argparse.Namespace(
             input_file=tmpfile,
-            output_dir=None,
+            twds_dir=None,
             overwrite=False,
             verbose=False,
         )
@@ -97,7 +97,7 @@ class TestParseCommand:
         with tempfile.TemporaryDirectory() as tmpdir:
             args = argparse.Namespace(
                 input_file=tmpfile,
-                output_dir=Path(tmpdir),
+                twds_dir=Path(tmpdir),
                 overwrite=False,
                 verbose=False,
             )
@@ -123,7 +123,7 @@ class TestParseYamlToTxt:
 
         args = _ap.Namespace(
             input_file=src,
-            output_dir=tmpdir,
+            twds_dir=tmpdir,
             overwrite=False,
             verbose=False,
         )
@@ -138,14 +138,14 @@ class TestParseYamlToTxt:
             yaml_path = self._write_yaml_tournament(Path(tmpdir) / "src")
             args = argparse.Namespace(
                 input_file=yaml_path,
-                output_dir=None,
+                twds_dir=None,
                 overwrite=False,
                 verbose=False,
             )
             ret = parse_cmd.run(args)
         assert ret == 0
 
-    def test_yaml_to_txt_with_output_dir(self):
+    def test_yaml_to_txt_with_twds_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             src_dir = Path(tmpdir) / "src"
             out_dir = Path(tmpdir) / "out"
@@ -153,7 +153,7 @@ class TestParseYamlToTxt:
             yaml_path = self._write_yaml_tournament(src_dir)
             args = argparse.Namespace(
                 input_file=yaml_path,
-                output_dir=out_dir,
+                twds_dir=out_dir,
                 overwrite=False,
                 verbose=False,
             )
@@ -168,7 +168,7 @@ class TestParseYamlToTxt:
             yaml_path = self._write_yaml_tournament(src_dir)
             args = argparse.Namespace(
                 input_file=yaml_path,
-                output_dir=out_dir,
+                twds_dir=out_dir,
                 overwrite=False,
                 verbose=False,
             )
@@ -182,7 +182,7 @@ class TestParseYamlToTxt:
             bad_yaml = Path(f.name)
         args = argparse.Namespace(
             input_file=bad_yaml,
-            output_dir=None,
+            twds_dir=None,
             overwrite=False,
             verbose=False,
         )
@@ -199,7 +199,7 @@ class TestParseYamlToTxt:
             yaml_path.rename(yml_path)
             args = argparse.Namespace(
                 input_file=yml_path,
-                output_dir=None,
+                twds_dir=None,
                 overwrite=False,
                 verbose=False,
             )
@@ -214,7 +214,7 @@ class TestParseUnsupportedExtension:
             tmp = Path(f.name)
         args = argparse.Namespace(
             input_file=tmp,
-            output_dir=None,
+            twds_dir=None,
             overwrite=False,
             verbose=False,
         )

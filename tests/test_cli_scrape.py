@@ -26,7 +26,7 @@ from channel_ten.cli import scrape as scrape_cmd
 def _scrape_namespace(**kwargs: Any) -> argparse.Namespace:
     """Build a scrape Namespace with sensible defaults for tests."""
     defaults = dict(
-        output_dir=Path("twds"),
+        twds_dir=Path("twds"),
         start_page=0,
         last_page=None,
         delay=0,
@@ -131,7 +131,7 @@ class TestScrapeCommand:
 class TestScrapeRun:
     def test_run_no_tournaments(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline():
                 ret = scrape_cmd.run(args)
             assert ret == 0
@@ -139,7 +139,7 @@ class TestScrapeRun:
     def test_run_with_tournament_written(self):
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])):
                 ret = scrape_cmd.run(args)
             assert ret == 0
@@ -149,7 +149,7 @@ class TestScrapeRun:
     def test_run_with_file_exists_skipped(self):
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])):
                 with patch(
                     "channel_ten.pipeline.write_tournament_yaml",
@@ -161,7 +161,7 @@ class TestScrapeRun:
     def test_run_with_general_error(self):
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=("Jane Doe", None),
@@ -176,7 +176,7 @@ class TestScrapeRun:
     def test_run_last_page_computes_max_pages(self):
         """last_page=4, start_page=2 → max_pages=3."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir), start_page=2, last_page=4)
+            args = _scrape_namespace(twds_dir=Path(tmpdir), start_page=2, last_page=4)
             with _patch_pipeline() as mocks:
                 scrape_cmd.run(args)
             _, kwargs = mocks["scrape_forum"].call_args
@@ -184,7 +184,7 @@ class TestScrapeRun:
 
     def test_run_no_last_page_passes_none_max_pages(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir), last_page=None)
+            args = _scrape_namespace(twds_dir=Path(tmpdir), last_page=None)
             with _patch_pipeline() as mocks:
                 scrape_cmd.run(args)
             _, kwargs = mocks["scrape_forum"].call_args
@@ -193,7 +193,7 @@ class TestScrapeRun:
     def test_run_enriches_card_ids(self):
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])) as mocks:
                 scrape_cmd.run(args)
             mocks["enrich_card_ids"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
@@ -204,7 +204,7 @@ class TestScrapeRun:
         assert t.vekn_number is None
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_player=("Jane Doe", 3940009),
@@ -220,7 +220,7 @@ class TestScrapeRun:
         """Unresolvable winners are written without vekn_number (not blocked)."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])):
                 ret = scrape_cmd.run(args)
             assert ret == 0
@@ -231,7 +231,7 @@ class TestScrapeRun:
         """When the event page has no results, the file is routed to errors/unconfirmed_winner/."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=None,
@@ -245,7 +245,7 @@ class TestScrapeRun:
         """Tournaments with a vekn_number are not re-looked-up."""
         t = make_tournament().model_copy(update={"vekn_number": 3940009})
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)])) as mocks:
                 scrape_cmd.run(args)
             mocks["fetch_player"].assert_not_called()
@@ -254,7 +254,7 @@ class TestScrapeRun:
         """Step 3: calendar winner overrides the forum winner."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=("Calendar Winner", None),
@@ -268,7 +268,7 @@ class TestScrapeRun:
         """Step 6: tournaments with validation errors are saved under errors/<type>/."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 error_types=["too_few_players"],
@@ -285,7 +285,7 @@ class TestScrapeRun:
         """When multiple errors exist, the first one determines the subdirectory."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 error_types=["missing_name", "illegal_crypt"],
@@ -298,7 +298,7 @@ class TestScrapeRun:
         """Step 6: no errors means the file is written to the normal directory."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=("Jane Doe", None),
@@ -315,7 +315,7 @@ class TestScrapeRun:
         """Step 6: fetch_event_date is called and passed to error_types."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_date=date(2023, 3, 25),
@@ -518,7 +518,7 @@ class TestScrapeInternalPaths:
 
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, ICON_MERGED)]),
                 fetch_event_winner=(t.winner, None),  # avoids calendar_winner_missing=True
@@ -535,7 +535,7 @@ class TestScrapeInternalPaths:
 
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, ICON_MERGED)]),
                 fetch_event_winner=(t.winner, None),
@@ -548,7 +548,7 @@ class TestScrapeInternalPaths:
     def test_run_errors_write_exception_counts_as_failure(self):
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 error_types=["too_few_players"],
@@ -566,7 +566,7 @@ class TestScrapeInternalPaths:
             stale = changes_dir / t.yaml_filename
             stale.write_text("stale content", encoding="utf-8")
 
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=(t.winner, None),
@@ -580,7 +580,7 @@ class TestScrapeInternalPaths:
         """Running twice without --overwrite increments overwrite_skipped counter."""
         t = make_tournament()
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
                 fetch_event_winner=(t.winner, None),
@@ -599,7 +599,7 @@ class TestScrapeInternalPaths:
         """Tournaments without an event_id are skipped immediately."""
         t = make_tournament().model_copy(update={"event_id": None})
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = _scrape_namespace(output_dir=Path(tmpdir))
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(scrape_forum=iter([(t, None)]), error_types=[]):
                 ret = scrape_cmd.run(args)
         assert ret == 0

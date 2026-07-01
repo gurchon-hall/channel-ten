@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 def register(sub: SubParsersAction) -> None:
     p = sub.add_parser("scrape", help="Scrape the VEKN forum and write YAML files.")
     p.add_argument(
-        "--output-dir",
+        "--twds-dir",
         "-o",
         type=Path,
         default=Path("twds"),
-        dest="output_dir",
+        dest="twds_dir",
         help="Root directory; files are written to <dir>/YYYY/MM/<event_id>.yaml. (default: twds)",
     )
 
@@ -108,7 +108,7 @@ def run(args: argparse.Namespace) -> int:
 
             # TWDA-imported events must never be overwritten by the forum scraper —
             # the archive is the authoritative source; use `import` to refresh them.
-            existing = find_existing_yaml(args.output_dir, tournament.yaml_filename)
+            existing = find_existing_yaml(args.twds_dir, tournament.yaml_filename)
             if existing is not None and is_twda_import(existing):
                 logger.debug("%s  (TWDA import — skipped by scrape)", tournament.event_id)
                 counters.skipped += 1
@@ -122,7 +122,7 @@ def run(args: argparse.Namespace) -> int:
                 tournament,
                 errors,
                 icon=icon,
-                output_dir=args.output_dir,
+                output_dir=args.twds_dir,
                 overwrite=args.overwrite,
                 counters=counters,
             )
