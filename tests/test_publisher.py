@@ -1,13 +1,15 @@
 """Tests for channel_ten.publisher using httpx mocking."""
 
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import httpx
 import pytest
 from conftest import make_tournament
 
 from channel_ten.github import (
+    close_pull_request,
     create_branch,
     delete_branch,
     ensure_fork,
@@ -16,6 +18,7 @@ from channel_ten.github import (
     get_authenticated_user,
     get_branch_sha,
     headers,
+    list_open_prs_from_fork,
     open_pull_request,
     put_file,
 )
@@ -297,6 +300,66 @@ class TestDeleteBranch:
         assert any("Could not delete branch" in r.message for r in caplog.records)
 
 
+class TestListOpenPrsFromFork:
+    def test_filters_by_fork_owner(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = [
+            {
+                "number": 1,
+                "html_url": "https://github.com/owner/repo/pull/1",
+                "head": {
+                    "ref": "twd/weekly-decks-2026-06-01",
+                    "repo": {"owner": {"login": "gurchon-hall"}},
+                },
+            },
+            {
+                "number": 2,
+                "html_url": "https://github.com/owner/repo/pull/2",
+                "head": {"ref": "some-other-branch", "repo": {"owner": {"login": "someone-else"}}},
+            },
+        ]
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_resp
+
+        prs = list_open_prs_from_fork(mock_client, "gurchon-hall", token="t")
+        assert prs == [
+            {
+                "number": 1,
+                "branch": "twd/weekly-decks-2026-06-01",
+                "html_url": "https://github.com/owner/repo/pull/1",
+            }
+        ]
+
+    def test_returns_empty_when_no_matches(self):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = []
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_resp
+
+        prs = list_open_prs_from_fork(mock_client, "gurchon-hall", token="t")
+        assert prs == []
+
+
+class TestClosePullRequest:
+    def test_sends_closed_state(self):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.patch.return_value = mock_resp
+
+        close_pull_request(mock_client, 42, token="t")
+
+        call_kwargs = mock_client.patch.call_args[1]
+        assert call_kwargs["json"] == {"state": "closed"}
+
+
 class TestBatchPRResult:
     def test_defaults(self):
         result = BatchPRResult()
@@ -306,6 +369,7 @@ class TestBatchPRResult:
         assert result.errors == []
         assert result.skipped_all is False
         assert result.dry_run is False
+        assert result.closed_prs == []
 
     def test_dry_run_flag(self):
         result = BatchPRResult(dry_run=True)
@@ -345,6 +409,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -368,6 +433,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", side_effect=err),
         ):
             result = publish_all_as_single_pr([t], token="mytoken", delay=0)
@@ -381,6 +447,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -399,6 +466,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -417,6 +485,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -441,6 +510,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", side_effect=file_exists),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -456,6 +526,108 @@ class TestPublishAllAsSinglePr:
 
         assert 9001 in result.skipped
         assert 9002 in result.published
+
+    def test_closes_stale_prs_and_branches_before_publishing(self):
+        t = make_tournament()
+
+        stale_prs = [
+            {"number": 7, "branch": "twd/weekly-decks-2026-05-01", "html_url": "https://gh/pr/7"}
+        ]
+
+        with (
+            patch("channel_ten.publisher.ensure_fork", return_value="gurchon-hall"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=stale_prs),
+            patch("channel_ten.publisher.close_pull_request") as mock_close,
+            patch("channel_ten.publisher.delete_branch") as mock_del,
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
+            patch(
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
+            ),
+            patch(
+                "channel_ten.publisher.open_pull_request",
+                return_value="https://github.com/pr/new",
+            ),
+        ):
+            result = publish_all_as_single_pr([t], token="mytoken", delay=0)
+
+        mock_close.assert_called_once_with(ANY, 7, "mytoken")
+        mock_del.assert_called_once_with(
+            ANY, "twd/weekly-decks-2026-05-01", "mytoken", owner="gurchon-hall"
+        )
+        assert result.closed_prs == ["https://gh/pr/7"]
+
+    def test_does_not_close_own_run_branch(self):
+        t = make_tournament()
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        own_branch = f"twd/weekly-decks-{today}"
+        stale_prs = [{"number": 7, "branch": own_branch, "html_url": "https://gh/pr/7"}]
+
+        with (
+            patch("channel_ten.publisher.ensure_fork", return_value="gurchon-hall"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=stale_prs),
+            patch("channel_ten.publisher.close_pull_request") as mock_close,
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
+            patch(
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
+            ),
+            patch(
+                "channel_ten.publisher.open_pull_request",
+                return_value="https://github.com/pr/new",
+            ),
+        ):
+            result = publish_all_as_single_pr([t], token="mytoken", delay=0)
+
+        mock_close.assert_not_called()
+        assert result.closed_prs == []
+
+    def test_dry_run_skips_stale_pr_cleanup(self):
+        t = make_tournament()
+
+        with (
+            patch("channel_ten.publisher.ensure_fork", return_value="gurchon-hall"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork") as mock_list,
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
+            patch(
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
+            ),
+            patch("channel_ten.publisher.delete_branch"),
+        ):
+            publish_all_as_single_pr([t], token="mytoken", delay=0, dry_run=True)
+
+        mock_list.assert_not_called()
+
+    def test_stale_pr_listing_failure_does_not_block_publish(self):
+        t = make_tournament()
+        err = httpx.HTTPStatusError("500", request=MagicMock(), response=MagicMock())
+
+        with (
+            patch("channel_ten.publisher.ensure_fork", return_value="gurchon-hall"),
+            patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", side_effect=err),
+            patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
+            patch("channel_ten.publisher.create_branch"),
+            patch(
+                "channel_ten.publisher.push_files_to_branch",
+                return_value=(["decks/9999.txt"], []),
+            ),
+            patch(
+                "channel_ten.publisher.open_pull_request",
+                return_value="https://github.com/pr/new",
+            ),
+        ):
+            result = publish_all_as_single_pr([t], token="mytoken", delay=0)
+
+        assert result.pr_url == "https://github.com/pr/new"
+        assert result.closed_prs == []
 
     def test_dry_run_deletes_branch_and_no_pr(self):
         t = make_tournament()
@@ -546,6 +718,7 @@ class TestPublishAllAsSinglePr:
         with (
             patch("channel_ten.publisher.ensure_fork", return_value="testuser"),
             patch("channel_ten.publisher.file_exists_on_branch", return_value=False),
+            patch("channel_ten.publisher.list_open_prs_from_fork", return_value=[]),
             patch("channel_ten.publisher.get_branch_sha", return_value="abc123"),
             patch("channel_ten.publisher.create_branch"),
             patch(
@@ -574,7 +747,7 @@ class TestPublishAllAsSinglePr:
 
 class TestEnsureFork:
     def test_fork_ready_immediately(self):
-        """Returns the fork owner when the fork is immediately available (200)."""
+        """Returns the gurchon-hall org login when the fork is immediately available (200)."""
         mock_client = MagicMock()
         user_resp = MagicMock()
         user_resp.json.return_value = {"login": "testuser"}
@@ -584,7 +757,22 @@ class TestEnsureFork:
         mock_client.post.return_value = MagicMock()
 
         result = ensure_fork(mock_client, token="mytoken")
-        assert result == "testuser"
+        assert result == "gurchon-hall"
+
+    def test_forks_into_gurchon_hall_org(self):
+        """The fork request always targets the gurchon-hall org, not the token's own account."""
+        mock_client = MagicMock()
+        user_resp = MagicMock()
+        user_resp.json.return_value = {"login": "testuser"}
+        fork_resp = MagicMock()
+        fork_resp.status_code = 200
+        mock_client.get.side_effect = [user_resp, fork_resp]
+        mock_client.post.return_value = MagicMock()
+
+        ensure_fork(mock_client, token="mytoken")
+
+        call_kwargs = mock_client.post.call_args[1]
+        assert call_kwargs["json"] == {"organization": "gurchon-hall"}
 
     def test_fork_polls_until_ready(self):
         """Polls until the fork becomes available (first 404, then 200)."""
@@ -601,5 +789,5 @@ class TestEnsureFork:
         with patch("channel_ten.github.time") as mock_time:
             result = ensure_fork(mock_client, token="mytoken")
 
-        assert result == "testuser"
+        assert result == "gurchon-hall"
         mock_time.sleep.assert_called_once_with(1)

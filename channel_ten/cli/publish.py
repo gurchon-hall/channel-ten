@@ -108,6 +108,12 @@ def _write_publish_report(
     else:
         lines += ["_No PR opened._", ""]
 
+    if result.closed_prs:
+        lines += [f"## Closed stale PR(s) from previous runs ({len(result.closed_prs)})", ""]
+        for url in result.closed_prs:
+            lines.append(f"- [{url}]({url})")
+        lines.append("")
+
     lines += [f"## Published ({len(result.published)})", ""]
     if result.published:
         published_set = set(result.published)

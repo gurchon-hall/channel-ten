@@ -91,6 +91,10 @@ A commit must pass all five before merging. There are no exceptions.
 - [ ] `ty check channel_ten/` passes locally (see `[tool.ty]` in `pyproject.toml`).
 - [ ] `CLAUDE.md`, `AGENTS.md`, and any relevant file under `docs/` updated to reflect
   the change — API contracts, pitfalls, pipeline steps, or "What not to do" rules.
+- [ ] For significant changes (new/renamed CLI flags or subcommands, changed pipeline
+  behaviour, changed external integrations) — add an entry under `Unreleased` in
+  `CHANGELOG.rst` and update the affected `README.md` section. Skip for internal
+  refactors with no user-visible or contract-level effect.
 
 ### Layer contracts
 
@@ -124,6 +128,15 @@ No imports from `cli/`, no I/O, no side effects.
   must return a tuple or `None`. Returning a plain string will raise `TypeError` at unpack.
   `unconfirmed_winner` is set only when the function returns `None` (standings absent), not
   when the player-registry lookup is ambiguous. See `docs/player_name_extraction.md`.
+- **Fork ownership**: `ensure_fork` always forks `GiottoVerducci/TWD` into the `gurchon-hall`
+  org (`FORK_OWNER` in `channel_ten/github.py`), never the token's personal account. The
+  token's user needs repo-creation rights in that org.
+- **Stale PR cleanup**: `publish_all_as_single_pr` lists open upstream PRs headed from the
+  fork (`list_open_prs_from_fork`), closes them, and deletes their branches before creating
+  this run's branch — except a branch that happens to match today's run. This runs every
+  non-dry-run publish, so at most one TWD PR is ever open at a time. Mocks for
+  `publish_all_as_single_pr` tests must patch `list_open_prs_from_fork` (return `[]` if the
+  test doesn't care about cleanup) or the real function will attempt a live GitHub call.
 
 ---
 

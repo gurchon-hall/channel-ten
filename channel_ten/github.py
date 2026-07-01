@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from datetime import date
+from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+FORK_OWNER = "gurchon-hall"
+"""Org that TWD forks are created under — never the token's personal account."""
 
 
 def headers(token: str | None = None) -> dict[str, str]:
@@ -88,25 +92,35 @@ def post_twda_issue(
 
 
 def ensure_fork(client: httpx.Client, token: str | None = None) -> str:
-    """Fork GiottoVerducci/TWD if needed and return the fork owner's login.
+    """Fork GiottoVerducci/TWD into the gurchon-hall org and return its login.
 
-    POST /forks is idempotent — GitHub returns the existing fork when one
-    already exists.  Fork creation is asynchronous, so we poll until the
-    fork's API endpoint responds 200 (up to 10 seconds).
+    Forks always land under the ``gurchon-hall`` organisation, never under
+    the token's personal account — the token's user must have permission to
+    create repositories in that org. POST /forks is idempotent — GitHub
+    returns the existing fork when one already exists. Fork creation is
+    asynchronous, so we poll until the fork's API endpoint responds 200
+    (up to 10 seconds).
     """
-    fork_owner = get_authenticated_user(client, token)
+    actor = get_authenticated_user(client, token)
     resp = client.post(
         f"{GITHUB_API}/repos/{TWDA_OWNER}/{TWDA_REPO}/forks",
         headers=headers(token),
+        json={"organization": FORK_OWNER},
     )
     resp.raise_for_status()
-    logger.debug("Fork ensured for %s/%s under %s.", TWDA_OWNER, TWDA_REPO, fork_owner)
-    fork_url = f"{GITHUB_API}/repos/{fork_owner}/{TWDA_REPO}"
+    logger.debug(
+        "Fork ensured for %s/%s under %s (requested by %s).",
+        TWDA_OWNER,
+        TWDA_REPO,
+        FORK_OWNER,
+        actor,
+    )
+    fork_url = f"{GITHUB_API}/repos/{FORK_OWNER}/{TWDA_REPO}"
     for _ in range(10):
         if client.get(fork_url, headers=headers(token)).status_code == 200:
             break
         time.sleep(1)
-    return fork_owner
+    return FORK_OWNER
 
 
 def get_branch_sha(
@@ -232,6 +246,46 @@ def find_existing_pr(
     if resp.status_code == 200 and resp.json():
         return str(resp.json()[0]["html_url"])
     return None
+
+
+def list_open_prs_from_fork(
+    client: httpx.Client,
+    fork_owner: str,
+    token: str | None = None,
+) -> list[dict[str, str | int]]:
+    """List open upstream PRs whose head branch lives on *fork_owner*'s fork.
+
+    Returns ``[{"number": int, "branch": str, "html_url": str}, ...]``.
+    """
+    url = f"{GITHUB_API}/repos/{TWDA_OWNER}/{TWDA_REPO}/pulls"
+    resp = client.get(url, headers=headers(token), params={"state": "open", "base": TWDA_BRANCH})
+    resp.raise_for_status()
+    prs: list[dict[str, str | int]] = []
+    for pr in resp.json():
+        pr_data: dict[str, Any] = pr
+        head: dict[str, Any] = pr_data.get("head", {})
+        repo: dict[str, Any] = head.get("repo") or {}
+        owner: dict[str, Any] = repo.get("owner") or {}
+        if owner.get("login") == fork_owner:
+            prs.append(
+                {
+                    "number": pr_data["number"],
+                    "branch": head.get("ref", ""),
+                    "html_url": pr_data["html_url"],
+                }
+            )
+    return prs
+
+
+def close_pull_request(
+    client: httpx.Client,
+    pr_number: int,
+    token: str | None = None,
+) -> None:
+    """Close upstream PR *pr_number* without merging it."""
+    url = f"{GITHUB_API}/repos/{TWDA_OWNER}/{TWDA_REPO}/pulls/{pr_number}"
+    resp = client.patch(url, headers=headers(token), json={"state": "closed"})
+    resp.raise_for_status()
 
 
 def delete_branch(

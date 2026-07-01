@@ -151,7 +151,8 @@ The workflow in `.github/workflows/publish.yml`:
 
 - Runs every Monday at 08:00 UTC
 - Can be triggered manually
-- Reads decks from eternal-vigilance, publishes new decks to [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR
+- Reads decks from eternal-vigilance, publishes new decks to [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR from a fork under the `gurchon-hall` organization
+- Closes any PR (and deletes its branch) left open on the fork from a previous run before opening the new one, so at most one TWD PR is open at a time
 - Commits a Markdown publish report to `eternal-vigilance/publish/YYYY/MM/`
 
 The workflow in `.github/workflows/pre-commit.yml`:

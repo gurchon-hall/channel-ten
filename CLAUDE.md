@@ -132,6 +132,13 @@ After every non-trivial change, update documentation:
 - `AGENTS.md` — add or amend the change checklist, common pitfalls, or layer contracts.
 - `docs/` — update or create a topic document when the change affects an API contract,
   a pipeline step, or a non-obvious behaviour that future contributors need to know.
+- `CHANGELOG.rst` and `README.md` — update for **significant** changes: new or renamed
+  CLI flags/subcommands, changed pipeline behaviour, changed external integrations
+  (GitHub API surface, fork/publish targets), or anything a user or downstream contributor
+  would need to know about to keep working correctly. Add the entry under `Unreleased` in
+  `CHANGELOG.rst`; update the relevant `README.md` section (workflow description, CLI
+  reference, or repo map) only where it is now stale. Skip both for internal refactors with
+  no user-visible or contract-level effect.
 
 ---
 
@@ -149,3 +156,11 @@ After every non-trivial change, update documentation:
   `tuple[str, int | None] | None`. The VEKN ID must be extracted from the standings
   link so ambiguous name lookups in the player registry are bypassed. See
   `docs/player_name_extraction.md`.
+- Do not fork `GiottoVerducci/TWD` under the token's personal account. `ensure_fork`
+  (`channel_ten/github.py`) always forks into the `gurchon-hall` org (`FORK_OWNER`)
+  via the `organization` param on `POST /forks`; the token's user must have repo-creation
+  permission in that org.
+- Do not open a new publish PR without first closing stale ones. `publish_all_as_single_pr`
+  closes every open upstream PR headed from the fork (and deletes its branch) before
+  creating this run's branch, except the branch matching today's run — this keeps at most
+  one open TWD PR at a time. This step is skipped on `--dry-run`.

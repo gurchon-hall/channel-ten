@@ -45,6 +45,10 @@ Added
   ``channel_ten/output/yaml.py`` (moved from the private
   ``_reorder_tournament_dict`` in ``cli/validate.py``, which was the wrong
   module for output-formatting logic).
+- ``list_open_prs_from_fork`` and ``close_pull_request`` in
+  ``channel_ten/github.py``: used by ``publish_all_as_single_pr`` to close
+  stale PRs (and delete their branches) left over from previous publish runs
+  before opening a new one.
 
 Changed
 -------
@@ -63,6 +67,16 @@ Changed
 - ``publisher.py`` reduced to domain orchestration: ``BatchPRResult``,
   ``sanitize_branch_name``, and ``publish_all_as_single_pr`` only.  All
   low-level GitHub REST calls delegated to ``channel_ten.github``.
+- ``ensure_fork`` (``channel_ten/github.py``) now forks ``GiottoVerducci/TWD``
+  into the ``gurchon-hall`` organisation via the ``organization`` parameter on
+  ``POST /forks``, instead of the token's personal account.  New
+  ``FORK_OWNER`` constant.  The token's user must have repo-creation
+  permission in ``gurchon-hall``.
+- ``publish_all_as_single_pr`` now closes every open upstream PR headed from
+  the fork and deletes its branch before creating this run's branch (skipping
+  the branch matching today's run), so at most one TWD PR is open at a time.
+  Skipped entirely on ``--dry-run``.  New ``BatchPRResult.closed_prs`` field
+  records the closed PR URLs, surfaced in the publish Markdown report.
 
 Added (card ID / validation, continued)
 ----------------------------------------

@@ -59,8 +59,9 @@ jobs:
       - name: Publish deck PRs to GiottoVerducci/TWD
         env:
           # A PAT with 'public_repo' scope stored as TWD_GITHUB_TOKEN.
-          # The script forks GiottoVerducci/TWD into the token owner's account
+          # The script forks GiottoVerducci/TWD into the gurchon-hall org
           # and opens a PR from the fork â€” no direct write access to that repo needed.
+          # The token's user must have repo-creation permission in gurchon-hall.
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: channel-ten publish --twds-dir eternal-vigilance --verbose
 

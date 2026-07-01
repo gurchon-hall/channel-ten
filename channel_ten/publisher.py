@@ -1,22 +1,27 @@
 """
 GitHub Pull Request publisher for TWD decks.
 
-Forks GiottoVerducci/TWD into the authenticated user's account (if not
-already forked), pushes new deck files to a branch on the fork, and opens
-a **single** Pull Request back into the upstream repository.
+Forks GiottoVerducci/TWD into the gurchon-hall organisation (if not already
+forked), closes any PRs/branches left over from previous runs, pushes new
+deck files to a branch on the fork, and opens a **single** Pull Request back
+into the upstream repository.
 
 Authentication:
   Requires a GitHub Personal Access Token (PAT) with 'public_repo' scope,
   supplied as the GITHUB_TOKEN environment variable or passed explicitly.
+  The token's user must have permission to create repositories in
+  gurchon-hall.
 
 API surface used (GitHub REST v3):
-  - GET  /user                                         → authenticated user login
-  - POST /repos/{owner}/{repo}/forks                   → fork upstream repo
-  - GET  /repos/{owner}/{repo}/git/refs/heads/{branch} → base SHA (upstream)
-  - GET  /repos/{owner}/{repo}/contents/{path}         → check file existence (upstream)
-  - POST /repos/{fork_owner}/{repo}/git/refs           → create branch on fork
-  - PUT  /repos/{fork_owner}/{repo}/contents/{path}    → create/update file on fork
-  - POST /repos/{owner}/{repo}/pulls                   → open PR into upstream
+  - GET   /user                                         → authenticated user login
+  - POST  /repos/{owner}/{repo}/forks                   → fork upstream repo into gurchon-hall
+  - GET   /repos/{owner}/{repo}/git/refs/heads/{branch} → base SHA (upstream)
+  - GET   /repos/{owner}/{repo}/contents/{path}         → check file existence (upstream)
+  - GET   /repos/{owner}/{repo}/pulls                   → list stale open PRs from the fork
+  - PATCH /repos/{owner}/{repo}/pulls/{number}          → close a stale PR
+  - POST  /repos/{fork_owner}/{repo}/git/refs           → create branch on fork
+  - PUT   /repos/{fork_owner}/{repo}/contents/{path}    → create/update file on fork
+  - POST  /repos/{owner}/{repo}/pulls                   → open PR into upstream
 """
 
 import logging
@@ -27,11 +32,13 @@ from datetime import UTC, datetime
 import httpx
 
 from channel_ten.github import (
+    close_pull_request,
     create_branch,
     delete_branch,
     ensure_fork,
     file_exists_on_branch,
     get_branch_sha,
+    list_open_prs_from_fork,
     open_pull_request,
     push_files_to_branch,
 )
@@ -68,6 +75,9 @@ class BatchPRResult:
     dry_run: bool = False
     """True when this result comes from a dry-run (branch deleted, no PR opened)."""
 
+    closed_prs: list[str] = field(default_factory=list[str])
+    """HTML URLs of stale PRs from previous runs that were closed before this PR."""
+
 
 def sanitize_branch_name(text: str) -> str:
     """Convert arbitrary text to a valid git branch name segment."""
@@ -95,9 +105,12 @@ def publish_all_as_single_pr(
     Steps:
       1. Filter tournaments: skip any deck whose file already exists on master.
       2. If nothing is new, return early (BatchPRResult.skipped_all = True).
-      3. Create one branch named ``{branch_prefix}-{YYYY-MM-DD}`` off master.
-      4. Commit each new deck's TXT file to that branch.
-      5. Open one PR with a summary table of all included decks.
+      3. Close any open PRs (and delete their branches) left over from
+         previous runs, so only one PR is ever open at a time. Skipped
+         entirely on dry_run.
+      4. Create one branch named ``{branch_prefix}-{YYYY-MM-DD}`` off master.
+      5. Commit each new deck's TXT file to that branch.
+      6. Open one PR with a summary table of all included decks.
          (dry_run: skip PR creation and delete the branch instead)
 
     Args:
@@ -138,9 +151,30 @@ def publish_all_as_single_pr(
             result.skipped_all = True
             return result
 
-        # ── Step 3: create one branch on the fork ───────────────────────────
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         branch = f"{branch_prefix}-{today}"
+
+        # ── Step 3: close stale PRs/branches from previous runs ──────────────
+        if not dry_run:
+            try:
+                stale_prs = list_open_prs_from_fork(client, fork_owner, token)
+            except httpx.HTTPStatusError as exc:
+                logger.warning("Could not list existing PRs for cleanup: %s", exc)
+                stale_prs = []
+            for pr in stale_prs:
+                stale_branch = str(pr["branch"])
+                if stale_branch == branch:
+                    continue
+                try:
+                    close_pull_request(client, int(pr["number"]), token)
+                    result.closed_prs.append(str(pr["html_url"]))
+                    logger.info("Closed stale PR #%s: %s", pr["number"], pr["html_url"])
+                except httpx.HTTPStatusError as exc:
+                    logger.warning("Could not close PR #%s: %s", pr["number"], exc)
+                if stale_branch:
+                    delete_branch(client, stale_branch, token, owner=fork_owner)
+
+        # ── Step 4: create one branch on the fork ───────────────────────────
         try:
             base_sha = get_branch_sha(client, TWDA_BRANCH, token)
             create_branch(client, branch, base_sha, token, owner=fork_owner)
@@ -149,7 +183,7 @@ def publish_all_as_single_pr(
                 result.errors.append((t.event_id or "unknown", f"Branch creation failed: {exc}"))
             return result
 
-        # ── Step 4: commit each deck file to the fork ────────────────────────
+        # ── Step 5: commit each deck file to the fork ────────────────────────
         files = [
             (
                 f"{TWDA_DECKS_FOLDER}/{t.event_id or 'unknown'}.txt",
@@ -170,7 +204,7 @@ def publish_all_as_single_pr(
         for path, err in commit_errors:
             result.errors.append((path_to_id.get(path, path), err))
 
-        # ── Step 5: open PR or (dry-run) delete the branch ───────────────────
+        # ── Step 6: open PR or (dry-run) delete the branch ───────────────────
         if not result.published:
             if dry_run:
                 delete_branch(client, branch, token, owner=fork_owner)
