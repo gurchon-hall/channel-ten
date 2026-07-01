@@ -12,13 +12,16 @@ starting from v0.1.0.
 
 ----
 
-Unreleased
-==========
+v0.9.0 — 2026-07-01
+====================
 
 Card ID support, event exclusion from validation, ``ANY``-grouping crypt
-parsing, rotating log files, a one-time card-rename migration script, and a
+parsing, rotating log files, a one-time card-rename migration script, a
 module-responsibility refactor separating pipeline and GitHub API logic into
-dedicated modules.
+dedicated modules, the ``--twds-dir`` flag rename, ``--force-date`` and
+``--errors-only`` validate flags, a ``fetch_event_winner`` VEKN ID fix, and a
+publish-workflow hardening pass (forks now land in ``gurchon-hall``; stale
+PRs and branches are closed before a new one is opened).
 Card ID feature first implemented by
 `@Zavierazo <https://github.com/Zavierazo>`_; refactored here due to the
 growing version gap since `PR #14 <https://github.com/gurchon-hall/channel-ten/pull/14>`_.
