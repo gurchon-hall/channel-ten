@@ -1,4 +1,4 @@
-﻿name: TWD Publish scrapes
+name: TWD Publish scrapes
 
 on:
   # Run every Monday at 08:00 UTC (after the weekly scrape has run)
@@ -32,7 +32,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
           python-version: "3.14"

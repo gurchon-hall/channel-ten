@@ -1,4 +1,4 @@
-﻿name: TWD Scrape VEKN forum
+name: TWD Scrape VEKN forum
 
 on:
   # Run on a schedule â€” every day at 06:00 UTC
@@ -57,7 +57,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
           python-version: "3.14"

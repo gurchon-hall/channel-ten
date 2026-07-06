@@ -1,4 +1,4 @@
-﻿name: TWD resync archive
+name: TWD resync archive
 
 on:
   # Run on a schedule â€” every Monday at 08:00 UTC
@@ -46,7 +46,7 @@ jobs:
           path: eternal-vigilance
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
           python-version: "3.14"
