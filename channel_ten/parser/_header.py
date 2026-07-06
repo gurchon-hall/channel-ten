@@ -86,12 +86,23 @@ def parse_header_lenient(lines: list[str]) -> Tournament:
 
     if unlabeled:
         name = unlabeled[0]
-    if len(unlabeled) >= 2:
-        location = unlabeled[1]
-    if len(unlabeled) >= 3:
-        date_start, date_end = helpers.helpers.split_date(unlabeled[2])
-    if winner is None and len(unlabeled) >= 4:
-        winner = unlabeled[3]
+    # Venue/location often wraps across several lines (e.g. "Venue Name" then
+    # "City, Country"), so its line count can't be assumed — find the date
+    # line instead and treat everything between name and date as location.
+    rest = unlabeled[1:]
+    date_idx = next(
+        (i for i, line in enumerate(rest) if helpers.helpers.looks_like_date(line)), None
+    )
+    if date_idx is not None:
+        if date_idx:
+            location = ", ".join(rest[:date_idx])
+        date_start, date_end = helpers.helpers.split_date(rest[date_idx])
+        trailing = rest[date_idx + 1 :]
+    else:
+        location = rest[0] if rest else None
+        trailing = rest[1:]
+    if winner is None and trailing:
+        winner = trailing[0]
 
     missing = [
         f

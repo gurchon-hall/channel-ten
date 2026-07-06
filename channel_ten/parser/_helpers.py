@@ -2,8 +2,9 @@
 
 import re
 import unicodedata
+from datetime import datetime
 
-from channel_ten.models import CryptCard, LibraryCard
+from channel_ten.models import DATE_FORMATS, CryptCard, LibraryCard
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +187,24 @@ class LineHelpers:
             parts = raw.split(" -- ", 1)
             return parts[0].strip(), parts[1].strip()
         return raw, None
+
+    @staticmethod
+    def looks_like_date(line: str) -> bool:
+        """True if `line` matches one of :data:`DATE_FORMATS`.
+
+        Used to locate the date line among unlabeled header lines: the venue/
+        location is often wrapped across several forum lines (e.g. "Venue
+        Name" / "City, Country"), so its line count can't be assumed.
+        """
+        candidate, _ = LineHelpers.split_date(line)
+        clean = re.sub(r"(\d+)(st|nd|rd|th)\b", r"\1", candidate).replace(",", "").strip()
+        for fmt in DATE_FORMATS:
+            try:
+                datetime.strptime(clean, fmt)
+                return True
+            except ValueError:
+                continue
+        return False
 
 
 # ---------------------------------------------------------------------------

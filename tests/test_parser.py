@@ -555,6 +555,52 @@ class TestParseHeaderLenient:
         with pytest.raises(ValueError, match="missing"):
             parse_header_lenient(lines)
 
+    def test_multiline_location_before_date(self):
+        """Venue name and city on separate lines are joined into one location.
+
+        Forum posts often wrap the venue across several lines (e.g. "Venue
+        Name" then "City, Country") before the date line — the date can't be
+        assumed to sit at a fixed offset from the name.
+        """
+        from channel_ten.parser._header import parse_header_lenient
+
+        lines = [
+            "Origins Sunday",
+            "Origins Game Fair, Greater Columbus Convention Center",
+            "Columbus, OH",
+            "21 June 2026",
+            "2R + F",
+            "33 players",
+            "Martin Weinmayer",
+            "www.vekn.net/event-calendar/event/13219",
+        ]
+        result = parse_header_lenient(lines)
+        assert result.location == (
+            "Origins Game Fair, Greater Columbus Convention Center, Columbus, OH"
+        )
+        assert str(result.date_start) == "2026-06-21"
+        assert result.winner == "Martin Weinmayer"
+
+    def test_missing_location_reported_as_missing_not_bad_date(self):
+        """A post with no location line at all fails on 'location', not a garbled date.
+
+        Without a date-line lookup, the positional fallback would grab the
+        line after the date as "location" and feed the real date into
+        `date_start` parsing, raising a confusing pydantic date error instead.
+        """
+        from channel_ten.parser._header import parse_header_lenient
+
+        lines = [
+            "CHAMA",
+            "21 June 2026",
+            "2R+F",
+            "22 players",
+            "DK Magaji",
+            "www.vekn.net/event-calendar/event/13381",
+        ]
+        with pytest.raises(ValueError, match=r"missing fields \['location'\]"):
+            parse_header_lenient(lines)
+
 
 class TestBlankLineStripping:
     """Covers the leading/trailing blank-line stripping in parse_twd_text."""

@@ -12,6 +12,26 @@ starting from v0.1.0.
 
 ----
 
+Unreleased
+==========
+
+Fixed
+-----
+
+- ``parser/_header.py`` (``parse_header_lenient``): the venue/location was
+  assumed to always be a single line, so multi-line venues (e.g. "Venue
+  Name" on one line, "City, Country" on the next — common on the forum)
+  pushed every following field one slot out of place, feeding the location's
+  continuation line into ``date_start`` and raising a confusing
+  ``Cannot parse date`` error. The parser now scans for the line that
+  actually looks like a date (``parser/_helpers.py::looks_like_date``) and
+  joins everything before it into ``location``, regardless of how many
+  lines the venue spans. This was silently dropping a large fraction of
+  scraped tournaments (e.g. all four "Week of Nightmares"/Origins posts in
+  a single scrape run).
+
+----
+
 v0.9.1 — 2026-07-01
 ====================
 
