@@ -1,4 +1,4 @@
-﻿name: TWD Validate scrapes
+name: TWD Validate scrapes
 
 on:
   # Run every Sunday at 20:00 UTC
@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout channel-ten
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: channel-ten
 
       - name: Checkout eternal-vigilance
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: gurchon-hall/eternal-vigilance
           token: ${{ secrets.PAT_TOKEN }}

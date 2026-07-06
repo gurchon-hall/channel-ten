@@ -1,4 +1,4 @@
-﻿name: TWD Scrape VEKN forum
+name: TWD Scrape VEKN forum
 
 on:
   # Run on a schedule â€” every day at 06:00 UTC
@@ -45,12 +45,12 @@ jobs:
 
     steps:
       - name: Checkout channel-ten
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: channel-ten
 
       - name: Checkout eternal-vigilance
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: gurchon-hall/eternal-vigilance
           token: ${{ secrets.PAT_TOKEN }}

@@ -1,4 +1,4 @@
-﻿name: TWD Publish scrapes
+name: TWD Publish scrapes
 
 on:
   # Run every Monday at 08:00 UTC (after the weekly scrape has run)
@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout channel-ten
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: channel-ten
 
       - name: Checkout eternal-vigilance
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: gurchon-hall/eternal-vigilance
           token: ${{ secrets.PAT_TOKEN }}
