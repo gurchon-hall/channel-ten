@@ -98,7 +98,9 @@ Returns `[]` when krcg is unavailable (same guard pattern as `unresolved_card_er
 def missing_card_id_errors(deck: Deck) -> list[str]:
     if not is_krcg_loaded():
         return []
-    all_cards: list[CryptCard | LibraryCard] = list(deck.crypt) + _iter_library_cards(deck)
+    all_cards: list[CryptCard | LibraryCard] = (
+        list(deck.crypt) + _iter_library_cards(deck)
+    )
     if any(c.id is None for c in all_cards):
         return ["missing_card_id"]
     return []
@@ -147,9 +149,12 @@ by library code.
 ## Pipeline call order (regular, not migration)
 
 ```text
-enrich_crypt_cards(deck)       # fills capacity, disciplines, … + sets crypt card ids
-enrich_card_ids(deck)          # sets library card ids (+ crypt fallback for unmatched cards)
-missing_card_id_errors(deck)   # returns ["missing_card_id"] if any id still None
+enrich_crypt_cards(deck)       # fills capacity, disciplines, …
+                               # + sets crypt card ids
+enrich_card_ids(deck)          # sets library card ids
+                               # (+ crypt fallback for unmatched cards)
+missing_card_id_errors(deck)   # returns ["missing_card_id"]
+                               # if any id still None
 ```
 
 `canonicalize_card_names()` is not listed here — it is a migration-only step called by

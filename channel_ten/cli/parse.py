@@ -43,9 +43,14 @@ def register(sub: SubParsersAction) -> None:
         "--twds-dir",
         "-o",
         type=Path,
-        default=None,
+        default=Path("twds"),
         dest="twds_dir",
-        help="Directory to write the output file. If omitted, prints to stdout.",
+        help="Directory to write the output file (default: twds).",
+    )
+    p.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print the result to stdout instead of writing a file.",
     )
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--verbose", "-v", action="store_true")
@@ -61,7 +66,7 @@ def _parse_txt_to_yaml(args: argparse.Namespace) -> int:
         logger.error("parse error: %s", exc)
         return 1
 
-    if args.twds_dir is None:
+    if args.stdout:
         sys.stdout.write(tournament_to_yaml_str(tournament))
     else:
         try:
@@ -84,7 +89,7 @@ def _parse_yaml_to_txt(args: argparse.Namespace) -> int:
         logger.error("parse error: %s", exc)
         return 1
 
-    if args.twds_dir is None:
+    if args.stdout:
         sys.stdout.write(tournament_to_txt(tournament) + "\n")
     else:
         try:

@@ -1,0 +1,16 @@
+{
+    "MD013": {
+        "code_block_line_length": 80,
+        "code_blocks": true,
+        "heading_line_length": 80,
+        "headings": true,
+        "line_length": 100,
+        "stern": true,
+        "strict": true,
+        "tables": false
+    },
+    "MD060": {
+        "aligned_delimiter": false,
+        "style": "compact"
+    }
+}

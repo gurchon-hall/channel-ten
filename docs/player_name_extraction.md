@@ -84,13 +84,28 @@ The patch target depends on which module uses the function:
 
 ```python
 # pipeline tests (scrape / import commands)
-patch("channel_ten.pipeline.fetch_event_winner", return_value=("Jane Doe", None))
-patch("channel_ten.pipeline.fetch_event_winner", return_value=("Alex Romano", 5920001))
-patch("channel_ten.pipeline.fetch_event_winner", return_value=None)
+patch(
+  "channel_ten.pipeline.fetch_event_winner",
+  return_value=("Jane Doe", None)
+)
+patch(
+  "channel_ten.pipeline.fetch_event_winner",
+  return_value=("Alex Romano", 5920001)
+)
+patch(
+  "channel_ten.pipeline.fetch_event_winner",
+  return_value=None
+)
 
 # validate command tests
-patch("channel_ten.cli.validate.fetch_event_winner", return_value=("Jane Doe", None))
+patch(
+  "channel_ten.cli.validate.fetch_event_winner",
+  return_value=("Jane Doe", None)
+)
 
 # wrong — will raise TypeError when the caller unpacks
-patch("channel_ten.pipeline.fetch_event_winner", return_value="Jane Doe")
+patch(
+  "channel_ten.pipeline.fetch_event_winner",
+  return_value="Jane Doe"
+)
 ```

@@ -41,6 +41,8 @@ class TestParseCommand:
         parse_cmd.register(sub)
         args = parser.parse_args(["parse", "input.txt"])
         assert args.command == "parse"
+        assert args.twds_dir == Path("twds")
+        assert args.stdout is False
 
     def test_run_stdout(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -49,7 +51,8 @@ class TestParseCommand:
 
         args = argparse.Namespace(
             input_file=tmpfile,
-            twds_dir=None,
+            twds_dir=Path("twds"),
+            stdout=True,
             overwrite=False,
             verbose=False,
         )
@@ -66,11 +69,33 @@ class TestParseCommand:
             args = argparse.Namespace(
                 input_file=tmpfile,
                 twds_dir=Path(tmpdir),
+                stdout=False,
                 overwrite=False,
                 verbose=False,
             )
             ret = parse_cmd.run(args)
             assert ret == 0
+
+        tmpfile.unlink()
+
+    def test_run_default_writes_to_twds_dir(self):
+        """With no --stdout flag, the parsed YAML is written under --twds-dir."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write(SIMPLE_TWD)
+            tmpfile = Path(f.name)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            twds_dir = Path(tmpdir) / "twds"
+            args = argparse.Namespace(
+                input_file=tmpfile,
+                twds_dir=twds_dir,
+                stdout=False,
+                overwrite=False,
+                verbose=False,
+            )
+            ret = parse_cmd.run(args)
+            assert ret == 0
+            assert list(twds_dir.rglob("*.yaml"))
 
         tmpfile.unlink()
 
@@ -81,7 +106,8 @@ class TestParseCommand:
 
         args = argparse.Namespace(
             input_file=tmpfile,
-            twds_dir=None,
+            twds_dir=Path("twds"),
+            stdout=True,
             overwrite=False,
             verbose=False,
         )
@@ -98,6 +124,7 @@ class TestParseCommand:
             args = argparse.Namespace(
                 input_file=tmpfile,
                 twds_dir=Path(tmpdir),
+                stdout=False,
                 overwrite=False,
                 verbose=False,
             )
@@ -124,6 +151,7 @@ class TestParseYamlToTxt:
         args = _ap.Namespace(
             input_file=src,
             twds_dir=tmpdir,
+            stdout=False,
             overwrite=False,
             verbose=False,
         )
@@ -138,7 +166,8 @@ class TestParseYamlToTxt:
             yaml_path = self._write_yaml_tournament(Path(tmpdir) / "src")
             args = argparse.Namespace(
                 input_file=yaml_path,
-                twds_dir=None,
+                twds_dir=Path("twds"),
+                stdout=True,
                 overwrite=False,
                 verbose=False,
             )
@@ -154,6 +183,7 @@ class TestParseYamlToTxt:
             args = argparse.Namespace(
                 input_file=yaml_path,
                 twds_dir=out_dir,
+                stdout=False,
                 overwrite=False,
                 verbose=False,
             )
@@ -169,6 +199,7 @@ class TestParseYamlToTxt:
             args = argparse.Namespace(
                 input_file=yaml_path,
                 twds_dir=out_dir,
+                stdout=False,
                 overwrite=False,
                 verbose=False,
             )
@@ -182,7 +213,8 @@ class TestParseYamlToTxt:
             bad_yaml = Path(f.name)
         args = argparse.Namespace(
             input_file=bad_yaml,
-            twds_dir=None,
+            twds_dir=Path("twds"),
+            stdout=True,
             overwrite=False,
             verbose=False,
         )
@@ -199,7 +231,8 @@ class TestParseYamlToTxt:
             yaml_path.rename(yml_path)
             args = argparse.Namespace(
                 input_file=yml_path,
-                twds_dir=None,
+                twds_dir=Path("twds"),
+                stdout=True,
                 overwrite=False,
                 verbose=False,
             )
@@ -214,7 +247,8 @@ class TestParseUnsupportedExtension:
             tmp = Path(f.name)
         args = argparse.Namespace(
             input_file=tmp,
-            twds_dir=None,
+            twds_dir=Path("twds"),
+            stdout=True,
             overwrite=False,
             verbose=False,
         )

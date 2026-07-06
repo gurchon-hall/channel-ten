@@ -1,6 +1,7 @@
 # Channel 10
 
-Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net/forum/event-reports-and-twd) and export them as YAML files.
+Scrape tournament winning decks (TWD) from the
+[VEKN forum](https://www.vekn.net/forum/event-reports-and-twd) and export them as YAML files.
 
 [![Pre-commit checks](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/pre-commit.yml)
 [![Scrape VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/scrape.yml)
@@ -10,13 +11,20 @@ Scrape tournament winning decks (TWD) from the [VEKN forum](https://www.vekn.net
 
 ## Data format
 
-Each tournament produces one YAML file named `{event_id}.yaml` where `event_id` is the numeric id from the VEKN event calendar URL (e.g. `/event/8470` → `8470.yaml`).
+Each tournament produces one YAML file named `{event_id}.yaml` where `event_id` is the numeric id
+from the VEKN event calendar URL (e.g. `/event/8470` → `8470.yaml`).
 
-Data files are stored in the dedicated repository [gurchon-hall/eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance), organized as `YYYY/MM/<event_id>.yaml`.
+Data files are stored in the dedicated repository
+[gurchon-hall/eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance), organized as
+`YYYY/MM/<event_id>.yaml`.
 
-This convention mirrors the [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) archive, which uses `decks/{event_id}.txt`.
+This convention mirrors the [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) archive,
+which uses `decks/{event_id}.txt`.
 
-The forum is not the complete record: some TWDs only ever made it into the GiottoVerducci/TWD archive. The `import` command backfills those — it imports every `decks/{event_id}.txt` whose `event_id` is **not already present in the base**, running each through the same enrichment/validation pipeline as `scrape`.
+The forum is not the complete record: some TWDs only ever made it into the
+GiottoVerducci/TWD archive. The `import` command backfills those: it imports every
+`decks/{event_id}.txt` whose `event_id` is **not already present in the base**, running each through
+the same enrichment/validation pipeline as `scrape`.
 
 ## Installation
 
@@ -24,7 +32,7 @@ The forum is not the complete record: some TWDs only ever made it into the Giott
 git clone https://github.com/gurchon-hall/channel-ten.git
 cd channel-ten
 uv sync --group dev
-pre-commit install              # register git hooks (ruff, pytest, CLI smoke tests)
+pre-commit install          # register git hooks (ruff, pytest, CLI smoke tests)
 ```
 
 Requires Python ≥ 3.14.
@@ -33,55 +41,63 @@ Requires Python ≥ 3.14.
 
 ### CLI
 
-```bash
-# Scrape all pages (starting from page 0)
-channel-ten scrape
+Every subcommand accepts `--verbose` / `-v` for debug logging and `--twds-dir`
+pointing at the root of a TWD data checkout (default: `twds/`).
 
-# Scrape pages 0–4 only (--last-page is inclusive, 0-indexed)
-channel-ten scrape --last-page 4
+#### Command `scrape`: fetch new TWDs from the VEKN forum
 
-# Start scraping from page 5 and stop at page 6
-channel-ten scrape --start-page 5 --last-page 6
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `--start-page` | 0-indexed page to start scraping from | No | `0` |
+| `--last-page` | 0-indexed page to stop scraping at (inclusive) | No | `None` (scrape all pages) |
+| `--delay` | Seconds between HTTP requests | No | `1.5` |
+| `--overwrite` | Overwrite existing YAML files | No | `False` |
+| `--twds-dir` | Directory to write YAML files to | No | `twds/` |
 
-# Overwrite existing YAML files
-channel-ten scrape --overwrite
+#### Command `import`: backfill decks that exist in GiottoVerducci/TWD
 
-# Write output to a custom directory (e.g. a local clone of eternal-vigilance)
-channel-ten scrape --twds-dir ../eternal-vigilance
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `--delay` | Seconds between HTTP requests | No | `1.5` |
+| `--overwrite` | Re-fetch and overwrite decks already in the base too | No | `False` |
+| `--twds-dir` | Directory to write YAML files to | No | `twds/` |
+| `--limit` | Limit the number of decks to import (for testing) | No | `None` (import all) |
+| `--github-token` | GitHub token to raise the deck-listing rate limit; falls back to `$GITHUB_TOKEN` | No | `None` |
+| `--create-issue` | Open a GitHub issue on GiottoVerducci/TWD listing decks that failed to import | No | `False` |
 
-# Import TWDs from GiottoVerducci/TWD that are not already in the base
-channel-ten import --twds-dir ../eternal-vigilance
+Note: only `--create-issue` strictly requires a GitHub token (with `public_repo` scope) —
+`--github-token`/`$GITHUB_TOKEN` is otherwise optional and only raises the deck-listing rate limit.
 
-# Use a token (raises the GitHub deck-listing rate limit) and cap the run for testing
-GITHUB_TOKEN=ghp_xxx channel-ten import --limit 5
+#### Command `parse`: convert a single file between .txt and YAML
 
-# Parse a single local .txt file to YAML (prints to stdout)
-channel-ten parse decks/8470.txt
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `<file>` | Path to a .txt or .yaml file to parse | Yes | '' |
+| `--stdout` | Print the output to stdout instead of writing a file | No | `False` |
+| `--twds-dir` | Directory to write YAML files to | No | `twds/` |
+| `--overwrite` | Overwrite the output file if it already exists | No | `False` |
 
-# Parse a .txt file and write YAML to a directory
-channel-ten parse decks/8470.txt --twds-dir twds
+#### Command `validate`: re-run the validation pipeline on published YAML files
 
-# Convert a YAML file back to .txt (prints to stdout)
-channel-ten parse twds/2023/03/9999.yaml
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `--full-validation` | Re-validate every YAML file in twds/ (slow, rescrapes the forum) | No | `False` |
+| `--errors-only` | Re-validate only the files currently under twds/errors/ | No | `False` |
+| `--dry-run` | Report only — do not move or update any files | No | `False` |
+| `--force-date` | Overwrite date_start when it disagrees with the VEKN event calendar | No | `False` |
 
-# Re-validate the 25 most recent published YAML files (fast, default)
-channel-ten validate
+#### Command `publish`: open a PR with new decks against GiottoVerducci/TWD
 
-# Re-validate every YAML file in twds/ (slow, rescrapes the forum)
-channel-ten validate --full-validation
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `--delay` | Seconds between GitHub API file commits | No | `1.0` |
+| `--github-token` | GitHub PAT with `public_repo` scope; falls back to `$GITHUB_TOKEN` | No | `None` |
+| `--publish-dir` | Directory to write Markdown publish reports | No | `publish/` |
+| `--include-pre-2020` | Include decks from before 2020 (skipped by default) | No | `False` |
+| `--dry-run` | Simulate publish without opening a PR (branch is deleted afterwards) | No | `False` |
 
-# Report only — do not move or update any files
-channel-ten validate --dry-run
-
-# Publish new decks as a single PR to GiottoVerducci/TWD
-GITHUB_TOKEN=ghp_xxx channel-ten publish
-
-# Publish including pre-2020 decks (skipped by default)
-GITHUB_TOKEN=ghp_xxx channel-ten publish --include-pre-2020
-
-# Simulate publish without opening a PR (branch is deleted afterwards)
-GITHUB_TOKEN=ghp_xxx channel-ten publish --dry-run
-```
+Note: this command always requires a GitHub token with repo access, set via `--github-token` or
+`$GITHUB_TOKEN`. It can be exported before the command or prefixed to the command itself.
 
 ### Python API
 
@@ -124,7 +140,8 @@ The `.pre-commit-config.yaml` runs the following checks on every commit:
 | `cli smoke: parse --help` | Verify the `parse` subcommand loads cleanly |
 | `cli smoke: publish --help` | Verify the `publish` subcommand loads cleanly |
 
-The GitHub Actions workflow `pre-commit.yml` runs the same hooks on every push and pull request as a safety net in case local hooks are not installed.
+The GitHub Actions workflow `pre-commit.yml` runs the same hooks on every push and pull request as
+a safety net in case local hooks are not installed.
 
 ## GitHub Actions
 
@@ -133,26 +150,33 @@ The workflow in `.github/workflows/scrape.yml`:
 - Runs daily at 06:00 UTC
 - Also triggered on push to `main` when source files change
 - Can be triggered manually with optional `start_page`, `last_page`, and `overwrite` inputs
-- Scrapes the forum and commits new YAML files to [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance)
+- Scrapes the forum and commits new YAML files to
+  [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance)
 
 The workflow in `.github/workflows/import.yml`:
 
 - Runs every Monday at 07:00 UTC
 - Can be triggered manually with optional `limit` and `overwrite` inputs
-- Imports decks from [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) whose `event_id` is not yet in [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance) and commits the new YAML files
+- Imports decks from [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) whose `event_id`
+  is not yet in [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance) and commits
+  the new YAML files
 
 The workflow in `.github/workflows/validate.yml`:
 
 - Runs every Sunday at 20:00 UTC
 - Can be triggered manually with an optional `full_validation` boolean input
-- Re-validates all published YAML files in eternal-vigilance, enriches them via krcg, and commits any updates
+- Re-validates all published YAML files in eternal-vigilance, enriches them via krcg, and commits
+  any updates
 
 The workflow in `.github/workflows/publish.yml`:
 
 - Runs every Monday at 08:00 UTC
 - Can be triggered manually
-- Reads decks from eternal-vigilance, publishes new decks to [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR from a fork under the `gurchon-hall` organization
-- Closes any PR (and deletes its branch) left open on the fork from a previous run before opening the new one, so at most one TWD PR is open at a time
+- Reads decks from eternal-vigilance, publishes new decks to
+  [GiottoVerducci/TWD](https://github.com/GiottoVerducci/TWD) as a single PR from a fork under the
+  `gurchon-hall` organization
+- Closes any PR (and deletes its branch) left open on the fork from a previous run before opening
+  the new one, so at most one TWD PR is open at a time
 - Commits a Markdown publish report to `eternal-vigilance/publish/YYYY/MM/`
 
 The workflow in `.github/workflows/pre-commit.yml`:
@@ -269,12 +293,20 @@ pyproject.toml
 ## Notes
 
 - The scraper respects a 1.5s delay between requests by default (`--delay`).
-- Use `--start-page` / `--last-page` to target a specific page range. Both are 0-indexed; `--last-page` is inclusive (page 0 = `limitstart=0`, page 1 = `limitstart=20`, etc.).
-- Winner lookup against the VEKN member database is applied automatically during scraping. `vekn_number` is written to the file. Unresolvable names are flagged but not blocked.
+- Use `--start-page` / `--last-page` to target a specific page range. Both are 0-indexed;
+  `--last-page` is inclusive (page 0 = `limitstart=0`, page 1 = `limitstart=20`, etc.).
+- Winner lookup against the VEKN member database is applied automatically during scraping.
+  `vekn_number` is written to the file. Unresolvable names are flagged but not blocked.
 - Content validation routes tournaments with errors to `twds/errors/<error_type>/` automatically.
-- Forum posts marked with the "merged" icon are written to `twds/changes_required/` instead of the normal date tree, so they can be reviewed before merging.
-- `validate` (fast mode) re-validates only the 25 most recent files that are neither stored in errors nor changes required; `--full-validation` rescrapes every published file.
-- To permanently protect a manually edited file from being overwritten by `validate`, add its event ID to `skip_events.txt` at the root of the eternal-vigilance checkout (one ID per line, `#` for comments). The file is optional; absent means no events are skipped.
-- `publish --dry-run` commits all files to a temporary branch to verify behaviour, then deletes the branch without opening a PR. A dry-run report is saved to `publish/YYYY/MM/dry-run-{date}-{HH-MM-SS}.md`.
+- Forum posts marked with the "merged" icon are written to `twds/changes_required/` instead of the
+  normal date tree, so they can be reviewed before merging.
+- `validate` (fast mode) re-validates only the 25 most recent files that are neither stored in
+  errors nor changes required; `--full-validation` rescrapes every published file.
+- To permanently protect a manually edited file from being overwritten by `validate`, add its event
+  ID to `skip_events.txt` at the root of the eternal-vigilance checkout (one ID per line, `#` for
+  comments). The file is optional; absent means no events are skipped.
+- `publish --dry-run` commits all files to a temporary branch to verify behaviour, then deletes the
+  branch without opening a PR. A dry-run report is saved to
+  `publish/YYYY/MM/dry-run-{date}-{HH-MM-SS}.md`.
 - The `User-Agent` header identifies the bot to the server.
 - Always verify `robots.txt` and VEKN forum terms before large-scale scraping.

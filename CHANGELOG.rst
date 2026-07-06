@@ -15,6 +15,14 @@ starting from v0.1.0.
 Unreleased
 ==========
 
+Changed
+-------
+
+- ``channel-ten parse``: ``--twds-dir`` now defaults to ``twds/``, matching
+  every other subcommand — previously it defaulted to ``None`` and printed to
+  stdout. Pass the new ``--stdout`` flag to get the old print-to-stdout
+  behavior explicitly.
+
 Fixed
 -----
 
@@ -29,6 +37,13 @@ Fixed
   lines the venue spans. This was silently dropping a large fraction of
   scraped tournaments (e.g. all four "Week of Nightmares"/Origins posts in
   a single scrape run).
+- ``README.md``: the CLI reference was restructured into one argument table
+  per subcommand and was missing several real flags — ``--delay`` on
+  ``scrape``/``import``/``publish``, the explicit ``--github-token`` flag on
+  ``import``/``publish``, ``--publish-dir`` on ``publish``, and ``--overwrite``
+  on ``parse``. Also corrected a wrong claim that ``import --limit`` requires
+  a GitHub token — only ``--create-issue`` does; ``--github-token`` merely
+  raises the deck-listing rate limit.
 
 ----
 
