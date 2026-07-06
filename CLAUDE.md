@@ -160,6 +160,13 @@ After every non-trivial change, update documentation:
   (`channel_ten/github.py`) always forks into the `gurchon-hall` org (`FORK_OWNER`)
   via the `organization` param on `POST /forks`; the token's user must have repo-creation
   permission in that org.
+- Do not assume the fork's repo name matches `TWDA_REPO` (upstream's name, `"TWD"`).
+  The fork is named independently via `FORK_REPO` (`"twd-fork"`) — `ensure_fork` checks
+  for it first and only creates it via `POST /forks` (with `"name": FORK_REPO`) when
+  missing, since calling that endpoint unconditionally previously caused GitHub to create
+  a second, differently-named duplicate fork under a race condition. `create_branch`,
+  `put_file`, and `delete_branch` take an explicit `repo=` param for this reason — always
+  pass `repo=FORK_REPO` at fork-side call sites, never rely on their `TWDA_REPO` default.
 - Do not open a new publish PR without first closing stale ones. `publish_all_as_single_pr`
   closes every open upstream PR headed from the fork (and deletes its branch) before
   creating this run's branch, except the branch matching today's run — this keeps at most

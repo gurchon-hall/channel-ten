@@ -27,6 +27,10 @@ _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 FORK_OWNER = "gurchon-hall"
 """Org that TWD forks are created under — never the token's personal account."""
 
+FORK_REPO = "twd-fork"
+"""Name of the fork under FORK_OWNER — independent of TWDA_REPO (the upstream
+repo's own name). Must match whatever the fork is actually named on GitHub."""
+
 
 def headers(token: str | None = None) -> dict[str, str]:
     """Build GitHub API request headers for *token* (falls back to $GITHUB_TOKEN)."""
@@ -96,26 +100,35 @@ def ensure_fork(client: httpx.Client, token: str | None = None) -> str:
 
     Forks always land under the ``gurchon-hall`` organisation, never under
     the token's personal account — the token's user must have permission to
-    create repositories in that org. POST /forks is idempotent — GitHub
-    returns the existing fork when one already exists. Fork creation is
-    asynchronous, so we poll until the fork's API endpoint responds 200
-    (up to 10 seconds).
+    create repositories in that org. The fork is checked for first and
+    ``POST /forks`` is only issued when it's missing: that endpoint is
+    idempotent for a genuine repeat fork, but if a same-named repo already
+    exists under the org for any other reason, GitHub creates a second,
+    differently-named fork instead of erroring — calling it unconditionally
+    on every run risks accumulating duplicate forks. Fork creation is
+    asynchronous, so a freshly requested fork is polled until its API
+    endpoint responds 200 (up to 10 seconds).
     """
+    fork_url = f"{GITHUB_API}/repos/{FORK_OWNER}/{FORK_REPO}"
+    if client.get(fork_url, headers=headers(token)).status_code == 200:
+        logger.debug("Fork already exists at %s/%s, reusing it.", FORK_OWNER, FORK_REPO)
+        return FORK_OWNER
+
     actor = get_authenticated_user(client, token)
     resp = client.post(
         f"{GITHUB_API}/repos/{TWDA_OWNER}/{TWDA_REPO}/forks",
         headers=headers(token),
-        json={"organization": FORK_OWNER},
+        json={"organization": FORK_OWNER, "name": FORK_REPO},
     )
     resp.raise_for_status()
     logger.debug(
-        "Fork ensured for %s/%s under %s (requested by %s).",
+        "Fork created for %s/%s under %s as %s (requested by %s).",
         TWDA_OWNER,
         TWDA_REPO,
         FORK_OWNER,
+        FORK_REPO,
         actor,
     )
-    fork_url = f"{GITHUB_API}/repos/{FORK_OWNER}/{TWDA_REPO}"
     for _ in range(10):
         if client.get(fork_url, headers=headers(token)).status_code == 200:
             break
@@ -141,9 +154,10 @@ def create_branch(
     sha: str,
     token: str | None = None,
     owner: str = TWDA_OWNER,
+    repo: str = TWDA_REPO,
 ) -> None:
     """Create a new git ref (branch) pointing at *sha* (idempotent)."""
-    url = f"{GITHUB_API}/repos/{owner}/{TWDA_REPO}/git/refs"
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/refs"
     resp = client.post(
         url,
         headers=headers(token),
@@ -176,9 +190,10 @@ def put_file(
     commit_message: str,
     token: str | None = None,
     owner: str = TWDA_OWNER,
+    repo: str = TWDA_REPO,
 ) -> None:
     """Create or update a file on *branch* via the Contents API."""
-    url = f"{GITHUB_API}/repos/{owner}/{TWDA_REPO}/contents/{path}"
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/contents/{path}"
     encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
 
     body: dict[str, str] = {
@@ -293,9 +308,10 @@ def delete_branch(
     branch: str,
     token: str | None = None,
     owner: str = TWDA_OWNER,
+    repo: str = TWDA_REPO,
 ) -> None:
     """Delete a git ref (branch) on *owner*'s fork (best-effort)."""
-    url = f"{GITHUB_API}/repos/{owner}/{TWDA_REPO}/git/refs/heads/{branch}"
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/refs/heads/{branch}"
     resp = client.delete(url, headers=headers(token))
     if resp.status_code == 204:
         logger.debug("Deleted branch %r on %s.", branch, owner)
@@ -315,8 +331,9 @@ def push_files_to_branch(
     fork_owner: str,
     token: str | None = None,
     delay: float = 1.0,
+    fork_repo: str = TWDA_REPO,
 ) -> tuple[list[str], list[tuple[str, str]]]:
-    """Commit *files* to *branch* on *fork_owner*'s fork of TWDA_REPO.
+    """Commit *files* to *branch* on *fork_owner*'s fork (named *fork_repo*).
 
     Each entry in *files* is ``(path, content, commit_message)``.  Returns
     ``(committed_paths, [(failed_path, error_message), ...])``.
@@ -327,7 +344,9 @@ def push_files_to_branch(
         if i > 0:
             time.sleep(delay)
         try:
-            put_file(client, path, content, branch, commit_msg, token, owner=fork_owner)
+            put_file(
+                client, path, content, branch, commit_msg, token, owner=fork_owner, repo=fork_repo
+            )
             committed.append(path)
             logger.debug("Committed %s to branch %s", path, branch)
         except httpx.HTTPStatusError as exc:

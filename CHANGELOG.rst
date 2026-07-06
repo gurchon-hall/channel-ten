@@ -22,6 +22,13 @@ Changed
   every other subcommand — previously it defaulted to ``None`` and printed to
   stdout. Pass the new ``--stdout`` flag to get the old print-to-stdout
   behavior explicitly.
+- The ``gurchon-hall`` fork of GiottoVerducci/TWD was renamed from ``TWD`` to
+  ``twd-fork``, matching the ``-fork`` suffix convention already used by
+  ``krcg-fork`` and ``vdb-fork``. ``github.py`` now tracks the fork's name via
+  a new ``FORK_REPO`` constant, decoupled from ``TWDA_REPO`` (upstream's own
+  name, which never changes) — ``create_branch``, ``put_file``, and
+  ``delete_branch`` take an explicit ``repo=`` parameter for this instead of
+  assuming the fork shares upstream's name.
 
 Fixed
 -----
@@ -44,6 +51,14 @@ Fixed
   on ``parse``. Also corrected a wrong claim that ``import --limit`` requires
   a GitHub token — only ``--create-issue`` does; ``--github-token`` merely
   raises the deck-listing rate limit.
+- ``github.py`` (``ensure_fork``): every ``publish`` run called
+  ``POST /forks`` unconditionally, trusting GitHub to treat it as a no-op
+  when ``gurchon-hall/TWD`` already existed. That assumption doesn't always
+  hold — if a same-named repo exists under the org for any reason other than
+  a clean prior fork, GitHub creates a second, differently-named fork
+  instead of erroring, which is how ``gurchon-hall`` ended up with two forks
+  of GiottoVerducci/TWD. ``ensure_fork`` now checks whether the fork already
+  exists first and only calls ``POST /forks`` when it's missing.
 
 ----
 

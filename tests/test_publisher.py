@@ -9,6 +9,7 @@ import pytest
 from conftest import make_tournament
 
 from channel_ten.github import (
+    FORK_REPO,
     close_pull_request,
     create_branch,
     delete_branch,
@@ -555,7 +556,7 @@ class TestPublishAllAsSinglePr:
 
         mock_close.assert_called_once_with(ANY, 7, "mytoken")
         mock_del.assert_called_once_with(
-            ANY, "twd/weekly-decks-2026-05-01", "mytoken", owner="gurchon-hall"
+            ANY, "twd/weekly-decks-2026-05-01", "mytoken", owner="gurchon-hall", repo=FORK_REPO
         )
         assert result.closed_prs == ["https://gh/pr/7"]
 
@@ -746,44 +747,85 @@ class TestPublishAllAsSinglePr:
 
 
 class TestEnsureFork:
-    def test_fork_ready_immediately(self):
-        """Returns the gurchon-hall org login when the fork is immediately available (200)."""
+    def test_fork_already_exists_skips_post(self):
+        """When the fork already exists, no POST /forks is issued at all.
+
+        This is the fix for duplicate forks: calling POST unconditionally on
+        every run risked GitHub creating a second, differently-named fork if
+        a same-named repo existed under the org for any reason other than a
+        clean prior fork.
+        """
+        mock_client = MagicMock()
+        fork_resp = MagicMock()
+        fork_resp.status_code = 200
+        mock_client.get.return_value = fork_resp
+
+        result = ensure_fork(mock_client, token="mytoken")
+
+        assert result == "gurchon-hall"
+        mock_client.post.assert_not_called()
+        assert mock_client.get.call_count == 1
+
+    def test_fork_created_when_missing(self):
+        """When the fork doesn't exist yet (pre-check 404), it's created via POST."""
         mock_client = MagicMock()
         user_resp = MagicMock()
         user_resp.json.return_value = {"login": "testuser"}
-        fork_resp = MagicMock()
-        fork_resp.status_code = 200
-        mock_client.get.side_effect = [user_resp, fork_resp]
+        fork_not_found = MagicMock()
+        fork_not_found.status_code = 404
+        fork_ready = MagicMock()
+        fork_ready.status_code = 200
+        mock_client.get.side_effect = [fork_not_found, user_resp, fork_ready]
         mock_client.post.return_value = MagicMock()
 
         result = ensure_fork(mock_client, token="mytoken")
         assert result == "gurchon-hall"
+        mock_client.post.assert_called_once()
 
-    def test_forks_into_gurchon_hall_org(self):
-        """The fork request always targets the gurchon-hall org, not the token's own account."""
+    def test_forks_into_gurchon_hall_org_as_twd_fork(self):
+        """The fork request targets the gurchon-hall org, under the twd-fork name."""
         mock_client = MagicMock()
         user_resp = MagicMock()
         user_resp.json.return_value = {"login": "testuser"}
-        fork_resp = MagicMock()
-        fork_resp.status_code = 200
-        mock_client.get.side_effect = [user_resp, fork_resp]
+        fork_not_found = MagicMock()
+        fork_not_found.status_code = 404
+        fork_ready = MagicMock()
+        fork_ready.status_code = 200
+        mock_client.get.side_effect = [fork_not_found, user_resp, fork_ready]
         mock_client.post.return_value = MagicMock()
 
         ensure_fork(mock_client, token="mytoken")
 
         call_kwargs = mock_client.post.call_args[1]
-        assert call_kwargs["json"] == {"organization": "gurchon-hall"}
+        assert call_kwargs["json"] == {"organization": "gurchon-hall", "name": FORK_REPO}
+
+    def test_pre_check_and_poll_target_fork_repo_name(self):
+        """Both the pre-check and the readiness poll hit gurchon-hall/<FORK_REPO>, not TWDA_REPO."""
+        mock_client = MagicMock()
+        fork_resp = MagicMock()
+        fork_resp.status_code = 200
+        mock_client.get.return_value = fork_resp
+
+        ensure_fork(mock_client, token="mytoken")
+
+        checked_url = mock_client.get.call_args[0][0]
+        assert checked_url.endswith(f"/repos/gurchon-hall/{FORK_REPO}")
 
     def test_fork_polls_until_ready(self):
         """Polls until the fork becomes available (first 404, then 200)."""
         mock_client = MagicMock()
         user_resp = MagicMock()
         user_resp.json.return_value = {"login": "testuser"}
-        fork_not_ready = MagicMock()
-        fork_not_ready.status_code = 404
+        fork_not_found = MagicMock()
+        fork_not_found.status_code = 404
         fork_ready = MagicMock()
         fork_ready.status_code = 200
-        mock_client.get.side_effect = [user_resp, fork_not_ready, fork_ready]
+        mock_client.get.side_effect = [
+            fork_not_found,  # pre-check: not created yet
+            user_resp,
+            fork_not_found,  # poll attempt 1: still not ready
+            fork_ready,  # poll attempt 2: ready
+        ]
         mock_client.post.return_value = MagicMock()
 
         with patch("channel_ten.github.time") as mock_time:

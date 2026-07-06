@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 import httpx
 
 from channel_ten.github import (
+    FORK_REPO,
     close_pull_request,
     create_branch,
     delete_branch,
@@ -172,12 +173,12 @@ def publish_all_as_single_pr(
                 except httpx.HTTPStatusError as exc:
                     logger.warning("Could not close PR #%s: %s", pr["number"], exc)
                 if stale_branch:
-                    delete_branch(client, stale_branch, token, owner=fork_owner)
+                    delete_branch(client, stale_branch, token, owner=fork_owner, repo=FORK_REPO)
 
         # ── Step 4: create one branch on the fork ───────────────────────────
         try:
             base_sha = get_branch_sha(client, TWDA_BRANCH, token)
-            create_branch(client, branch, base_sha, token, owner=fork_owner)
+            create_branch(client, branch, base_sha, token, owner=fork_owner, repo=FORK_REPO)
         except httpx.HTTPStatusError as exc:
             for t in new_tournaments:
                 result.errors.append((t.event_id or "unknown", f"Branch creation failed: {exc}"))
@@ -197,7 +198,7 @@ def publish_all_as_single_pr(
             for t in new_tournaments
         }
         committed_paths, commit_errors = push_files_to_branch(
-            client, files, branch, fork_owner, token, delay
+            client, files, branch, fork_owner, token, delay, fork_repo=FORK_REPO
         )
         for path in committed_paths:
             result.published.append(path_to_id.get(path, path))
@@ -207,12 +208,12 @@ def publish_all_as_single_pr(
         # ── Step 6: open PR or (dry-run) delete the branch ───────────────────
         if not result.published:
             if dry_run:
-                delete_branch(client, branch, token, owner=fork_owner)
+                delete_branch(client, branch, token, owner=fork_owner, repo=FORK_REPO)
             return result
 
         if dry_run:
             logger.info("Dry-run: deleting branch %r instead of opening a PR.", branch)
-            delete_branch(client, branch, token, owner=fork_owner)
+            delete_branch(client, branch, token, owner=fork_owner, repo=FORK_REPO)
             return result
 
         pr_title = f"Add {len(result.published)} TWD deck(s) — {today}"
