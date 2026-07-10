@@ -44,15 +44,22 @@ def _check_calendar_name(
     client: httpx.Client,
     tournament: Tournament,
     delay: float,
-) -> Tournament:
-    """Step 3: override the tournament name with the official VEKN calendar name."""
+) -> tuple[Tournament, bool]:
+    """Step 3: override the tournament name with the official VEKN calendar name.
+
+    Returns ``(tournament, calendar_name_missing)`` where ``calendar_name_missing``
+    is ``True`` when the event URL is set but the calendar page has no name data.
+    A forum-post mis-parse (e.g. a poster's preamble note swallowed as the name)
+    is otherwise indistinguishable from a real name, so this is the only signal
+    that the name was never confirmed against the calendar.
+    """
     if not tournament.event_url:
-        return tournament
+        return tournament, False
     try:
         calendar_name = fetch_event_name(client, tournament.event_url, delay=delay)
         if calendar_name is None:
             logger.debug("No name data on event page: %s", tournament.event_url)
-            return tournament
+            return tournament, True
         if calendar_name != tournament.name:
             logger.debug(
                 "Calendar name override: %r → %r  (%s)",
@@ -60,14 +67,14 @@ def _check_calendar_name(
                 calendar_name,
                 tournament.event_url,
             )
-            return tournament.model_copy(update={"name": calendar_name})
+            return tournament.model_copy(update={"name": calendar_name}), False
     except Exception as exc:
         logger.warning(
             "Could not fetch calendar name for %s: %s",
             tournament.event_url,
             exc,
         )
-    return tournament
+    return tournament, False
 
 
 def _check_calendar_winner(
@@ -197,14 +204,18 @@ def process_tournament(
 ) -> tuple[Tournament, list[str]]:
     """Run pipeline steps 3-6 and return the enriched tournament and its errors.
 
-    The returned ``errors`` list includes ``"unconfirmed_winner"`` when the event
-    has a calendar URL but the calendar page has no results/standings data yet.
+    The returned ``errors`` list includes ``"unconfirmed_name"`` when the event
+    has a calendar URL but the calendar page has no name data, and
+    ``"unconfirmed_winner"`` when the calendar page has no results/standings
+    data yet.
     """
-    tournament = _check_calendar_name(client, tournament, delay)
+    tournament, calendar_name_missing = _check_calendar_name(client, tournament, delay)
     tournament, calendar_winner_missing = _check_calendar_winner(client, tournament, delay)
     tournament = _lookup_player(client, tournament, delay)
     tournament = _enrich_with_krcg(tournament)
     errors = _validate_content(client, tournament, delay)
+    if calendar_name_missing:
+        errors.append("unconfirmed_name")
     if calendar_winner_missing:
         errors.append("unconfirmed_winner")
     return tournament, errors

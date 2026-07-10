@@ -23,6 +23,7 @@ from ruamel.yaml import YAML
 
 import channel_ten.cli.validate as validate_mod
 from channel_ten.cli.validate import (
+    _check_and_update_name,  # pyright: ignore[reportPrivateUsage]
     _check_and_update_winner,  # pyright: ignore[reportPrivateUsage]
     _iter_published_yaml,  # pyright: ignore[reportPrivateUsage]
     _load_skip_event_ids,  # pyright: ignore[reportPrivateUsage]
@@ -109,6 +110,7 @@ def _patch_validate(**overrides: Any):
     """Patch all external calls in validate.run() to no-ops by default."""
     defaults: dict[str, list[str] | None] = {
         "extract_twd_from_thread": None,
+        "fetch_event_name": None,
         "fetch_event_winner": None,
         "fetch_player": None,
         "fetch_event_date": None,
@@ -215,6 +217,41 @@ class TestLoadSkipEventIds:
             result = _load_skip_event_ids(twds_dir)
         assert result == frozenset({1234})
         assert "not-an-id" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _check_and_update_name  (scraper interaction)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAndUpdateName:
+    def _client(self):
+        return MagicMock()
+
+    def test_updates_name_from_calendar(self):
+        data = _tournament_dict(name="Note: this event was moved to a new venue.")
+        client = self._client()
+        with patch.object(
+            validate_mod, "fetch_event_name", return_value="Praxis Seizure: Osnabrück"
+        ):
+            dirty = _check_and_update_name(client, data, "https://example.com/event/1")
+        assert dirty is True
+        assert data["name"] == "Praxis Seizure: Osnabrück"
+
+    def test_no_change_when_already_correct(self):
+        data = _tournament_dict(name="Test Event")
+        client = self._client()
+        with patch.object(validate_mod, "fetch_event_name", return_value="Test Event"):
+            dirty = _check_and_update_name(client, data, "https://example.com/event/1")
+        assert dirty is False
+
+    def test_no_change_when_calendar_name_missing(self):
+        data = _tournament_dict(name="Test Event")
+        client = self._client()
+        with patch.object(validate_mod, "fetch_event_name", return_value=None):
+            dirty = _check_and_update_name(client, data, "https://example.com/event/1")
+        assert dirty is False
+        assert data["name"] == "Test Event"
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +384,32 @@ class TestValidateRunScraperInteraction:
             ):
                 rc = validate_mod.run(_validate_namespace(tmp_path))
         assert rc == 0
+
+    def test_calendar_name_check_called_with_event_url(self, tmp_path: Path):
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["fetch_event_name"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+        url_arg = mocks["fetch_event_name"].call_args[0][1]  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAttributeAccessIssue]
+        assert "9999" in url_arg
+
+    def test_calendar_name_check_skipped_in_dry_run(self, tmp_path: Path):
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path, dry_run=True))
+        mocks["fetch_event_name"].assert_not_called()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_calendar_name_update_written_to_file(self, tmp_path: Path):
+        """When the calendar returns a different name, it is persisted."""
+        _write_yaml(
+            tmp_path / "2023" / "03" / "9999.yaml",
+            _tournament_dict(name="Note: mistaken preamble."),
+        )
+        with _patch_validate(fetch_event_name="Praxis Seizure: Osnabrück", error_types=[]):
+            validate_mod.run(_validate_namespace(tmp_path))
+        with open(tmp_path / "2023" / "03" / "9999.yaml", encoding="utf-8") as fh:
+            on_disk = _yaml.load(fh)  # pyright: ignore[reportUnknownMemberType]
+        assert on_disk["name"] == "Praxis Seizure: Osnabrück"
 
     def test_calendar_winner_check_called_with_event_url(self, tmp_path: Path):
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
@@ -588,6 +651,18 @@ class TestValidateRunEdgeCases:
             validate_mod.run(_validate_namespace(tmp_path))
         mocks["error_types"].assert_not_called()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
+    def test_calendar_name_check_exception_continues(self, tmp_path: Path):
+        """A crash in _check_and_update_name must not abort the run loop."""
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
+        with _patch_validate():
+            with patch.object(
+                validate_mod,
+                "fetch_event_name",
+                side_effect=Exception("network error"),
+            ):
+                rc = validate_mod.run(_validate_namespace(tmp_path))
+        assert rc == 0
+
     def test_calendar_winner_check_exception_continues(self, tmp_path: Path):
         """A crash in _check_and_update_winner must not abort the run loop."""
         _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", _tournament_dict())
@@ -660,6 +735,14 @@ class TestValidateRunEdgeCases:
         with _patch_validate() as mocks:
             validate_mod.run(_validate_namespace(tmp_path))
         mocks["extract_twd_from_thread"].assert_not_called()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+
+    def test_twda_import_file_still_checks_calendar_name(self, tmp_path: Path):
+        """Calendar name check runs for TWDA-import files too (no forum thread to rescrape)."""
+        data = _tournament_dict(forum_post_url="https://www.vekn.net/event-calendar/event/9999")
+        _write_yaml(tmp_path / "2023" / "03" / "9999.yaml", data)
+        with _patch_validate() as mocks:
+            validate_mod.run(_validate_namespace(tmp_path))
+        mocks["fetch_event_name"].assert_called_once()  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
     def test_twda_import_file_still_checks_calendar_winner(self, tmp_path: Path):
         """Calendar winner check runs for TWDA-import files so unconfirmed_winner can clear."""

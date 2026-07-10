@@ -164,6 +164,7 @@ class TestScrapeRun:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=("Jane Doe", None),
             ):
                 with patch(
@@ -234,11 +235,27 @@ class TestScrapeRun:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,  # avoids unconfirmed_name pre-empting the dir
                 fetch_event_winner=None,
             ):
                 ret = scrape_cmd.run(args)
             assert ret == 0
             error_file = Path(tmpdir) / "errors" / "unconfirmed_winner" / "9999.yaml"
+            assert error_file.exists()
+
+    def test_run_no_calendar_name_routes_to_unconfirmed_name(self):
+        """When the event page has no name data, the file is routed to errors/unconfirmed_name/."""
+        t = make_tournament()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = _scrape_namespace(twds_dir=Path(tmpdir))
+            with _patch_pipeline(
+                scrape_forum=iter([(t, None)]),
+                fetch_event_name=None,
+                fetch_event_winner=(t.winner, None),  # avoids unconfirmed_winner too
+            ):
+                ret = scrape_cmd.run(args)
+            assert ret == 0
+            error_file = Path(tmpdir) / "errors" / "unconfirmed_name" / "9999.yaml"
             assert error_file.exists()
 
     def test_run_skips_lookup_when_vekn_number_present(self):
@@ -257,6 +274,7 @@ class TestScrapeRun:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=("Calendar Winner", None),
             ):
                 scrape_cmd.run(args)
@@ -301,6 +319,7 @@ class TestScrapeRun:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=("Jane Doe", None),
                 error_types=[],
             ):
@@ -521,6 +540,7 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, ICON_MERGED)]),
+                fetch_event_name=t.name,  # avoids calendar_name_missing=True
                 fetch_event_winner=(t.winner, None),  # avoids calendar_winner_missing=True
                 error_types=[],
             ):
@@ -569,6 +589,7 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
@@ -583,12 +604,14 @@ class TestScrapeInternalPaths:
             args = _scrape_namespace(twds_dir=Path(tmpdir))
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
                 scrape_cmd.run(args)
             with _patch_pipeline(
                 scrape_forum=iter([(t, None)]),
+                fetch_event_name=t.name,
                 fetch_event_winner=(t.winner, None),
                 error_types=[],
             ):
@@ -621,13 +644,14 @@ class TestCheckCalendarName:
             "channel_ten.pipeline.fetch_event_name",
             return_value="Authoritative Event Name",
         ):
-            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result, missing = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
             )
         assert result.name == "Authoritative Event Name"
         assert result is not t
+        assert missing is False
 
     def test_keeps_forum_name_when_calendar_returns_none(self):
         from unittest.mock import MagicMock
@@ -635,13 +659,27 @@ class TestCheckCalendarName:
         t = make_tournament()
         client = MagicMock()
         with patch("channel_ten.pipeline.fetch_event_name", return_value=None):
-            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result, _ = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
             )
         assert result is t
         assert result.name == "Test Event"
+
+    def test_none_sets_missing(self):
+        """fetch_event_name returning None marks calendar_name_missing True."""
+        from unittest.mock import MagicMock
+
+        t = make_tournament()
+        client = MagicMock()
+        with patch("channel_ten.pipeline.fetch_event_name", return_value=None):
+            _, missing = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+                client,
+                t,
+                delay=0,
+            )
+        assert missing is True
 
     def test_keeps_forum_name_when_names_match(self):
         from unittest.mock import MagicMock
@@ -652,12 +690,13 @@ class TestCheckCalendarName:
             "channel_ten.pipeline.fetch_event_name",
             return_value="Test Event",
         ):
-            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result, missing = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
             )
         assert result is t
+        assert missing is False
 
     def test_exception_returns_original_tournament(self):
         from unittest.mock import MagicMock
@@ -668,21 +707,23 @@ class TestCheckCalendarName:
             "channel_ten.pipeline.fetch_event_name",
             side_effect=Exception("network error"),
         ):
-            result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+            result, missing = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
                 client,
                 t,
                 delay=0,
             )
         assert result is t
+        assert missing is False
 
     def test_no_event_url_returns_original_tournament(self):
         from unittest.mock import MagicMock
 
         t = make_tournament().model_copy(update={"event_url": None})
         client = MagicMock()
-        result = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
+        result, missing = pipeline_cmd._check_calendar_name(  # pyright: ignore[reportPrivateUsage]
             client,
             t,
             delay=0,
         )
         assert result is t
+        assert missing is False

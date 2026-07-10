@@ -44,14 +44,19 @@ def _import_namespace(**kwargs: Any) -> argparse.Namespace:
 
 
 @contextlib.contextmanager
-def _patch_pipeline_externals(winner: str = "Pedro Millán Monje", errors: list[str] | None = None):
+def _patch_pipeline_externals(
+    winner: str = "Pedro Millán Monje",
+    name: str = "The Dark Courier",
+    errors: list[str] | None = None,
+):
     """No-op every network call in the shared scrape pipeline.
 
-    ``fetch_event_winner`` returns *winner* (non-None) so the deck is not flagged
-    ``unconfirmed_winner``. ``error_types`` returns *errors* (default: none).
+    ``fetch_event_name`` returns *name* and ``fetch_event_winner`` returns *winner*
+    (both non-None) so the deck is not flagged ``unconfirmed_name``/``unconfirmed_winner``.
+    ``error_types`` returns *errors* (default: none).
     """
     with (
-        patch("channel_ten.pipeline.fetch_event_name", return_value=None),
+        patch("channel_ten.pipeline.fetch_event_name", return_value=name),
         patch("channel_ten.pipeline.fetch_event_winner", return_value=(winner, None)),
         patch("channel_ten.pipeline.fetch_event_date", return_value=None),
         patch("channel_ten.pipeline.fetch_player", return_value=None),

@@ -23,8 +23,9 @@ tests/               pytest suite — mirrors channel_ten/ structure
 .github/workflows/   CI definitions (see below)
 ```
 
-Data repository: `gurchon-hall/eternal-vigilance` — YAML files organised as `YYYY/MM/<event_id>.yaml`.
-Upstream TWD archive: `GiottoVerducci/TWD` — TXT files under `decks/<event_id>.txt`.
+Data repository: `gurchon-hall/eternal-vigilance` — YAML files organised as
+`YYYY/MM/<event_id>.yaml`. Upstream TWD archive: `GiottoVerducci/TWD` — TXT files under
+`decks/<event_id>.txt`.
 
 ---
 
@@ -54,10 +55,15 @@ A commit must pass all five before merging. There are no exceptions.
 
 ### CI failure triage
 
-- **ruff failure** → formatting or lint issue. Run `ruff check --fix && ruff format` locally, then re-commit.
-- **pytest failure** → check `reports/pytest/` (HTML coverage report) and `--tb=short` output. Do not suppress with `filterwarnings` without understanding the cause.
-- **CLI smoke failure** → a subcommand import or argparse registration broke. The smoke tests only call `--help`; if they fail, the error is in `cli/__init__.py` or the subcommand's top-level imports.
-- **ty failure** (run locally, not in CI) → fix types; do not add a `ty: ignore` comment without explaining why.
+- **ruff failure** → formatting or lint issue. Run `ruff check --fix && ruff format` locally,
+  then re-commit.
+- **pytest failure** → check `reports/pytest/` (HTML coverage report) and `--tb=short` output.
+  Do not suppress with `filterwarnings` without understanding the cause.
+- **CLI smoke failure** → a subcommand import or argparse registration broke. The smoke tests only
+  call `--help`; if they fail, the error is in `cli/__init__.py` or the subcommand's top-level
+  imports.
+- **ty failure** (run locally, not in CI) → fix types; do not add a `ty: ignore` comment without
+  explaining why.
 
 ### Environment variables
 
@@ -103,11 +109,13 @@ No imports from `cli/`, no I/O, no side effects.
 
 **`parser/`** — takes raw strings, returns Pydantic models. No HTTP, no filesystem.
 
-**`scraper/`** — takes an `httpx.Client`, returns data. Logs at DEBUG. Respects `DEFAULT_DELAY_SECONDS`.
+**`scraper/`** — takes an `httpx.Client`, returns data. Logs at DEBUG.
+Respects `DEFAULT_DELAY_SECONDS`.
 
 **`output/`** — takes Pydantic models, returns strings or writes files. No validation logic.
 
-**`cli/`** — wires everything together, handles I/O, user messages via `rich`. No business logic inline.
+**`cli/`** — wires everything together, handles I/O, user messages via `rich`.
+No business logic inline.
 
 ### Common pitfalls
 
@@ -128,6 +136,28 @@ No imports from `cli/`, no I/O, no side effects.
   must return a tuple or `None`. Returning a plain string will raise `TypeError` at unpack.
   `unconfirmed_winner` is set only when the function returns `None` (standings absent), not
   when the player-registry lookup is ambiguous. See `docs/player_name_extraction.md`.
+- **Tournament name is calendar-derived, not forum-derived**: a forum poster can prepend a
+  free-text note before the actual TWD header, shifting every header line down by one — the
+  note gets parsed as `name`, and the real name bleeds into `location`. Rescraping the forum
+  post (`validate` step 1) reproduces the same mis-parse, since the source text hasn't
+  changed. The only fix is overriding `name` from the VEKN event calendar
+  (`fetch_event_name`), which both `pipeline._check_calendar_name` (scrape/import) and
+  `cli/validate.py::_check_and_update_name` (validate) do. Do not remove either call in favor
+  of trusting the forum-parsed name.
+- **`fetch_event_name` selector order**: VEKN's event-calendar pages rarely have
+  JSON-LD or an `<h1>` — the title is almost always in
+  `<div class="componentheading">` (a Joomla/JEvents template class), confirmed via a
+  live `scrape` run where nearly every event logged `"Could not extract event title"`
+  before this strategy was added. Keep `componentheading` checked before the `<h1>`
+  fallback; removing or reordering it makes `unconfirmed_name` fire on almost every
+  scraped tournament instead of only the rare forum mis-parse case.
+- **`_check_calendar_name` return type**: like `_check_calendar_winner`, this returns
+  `tuple[Tournament, bool]`, not a plain `Tournament` — the second element is
+  `calendar_name_missing`, `True` when the calendar page has no name data at all. Only
+  `pipeline.process_tournament` (scrape/import) threads this into an `"unconfirmed_name"`
+  error; `cli/validate.py` intentionally does not, so a transient fetch failure on an
+  already-published, previously-confirmed file doesn't bounce it into `errors/` on a later
+  `validate` run. See `docs/player_name_extraction.md`.
 - **Fork ownership**: `ensure_fork` always forks `GiottoVerducci/TWD` into the `gurchon-hall`
   org (`FORK_OWNER` in `channel_ten/github.py`), never the token's personal account. The
   token's user needs repo-creation rights in that org.
@@ -155,7 +185,8 @@ No imports from `cli/`, no I/O, no side effects.
   - No new `TypedDict`s.
   - No comments that restate the code.
 - Tests
-  - Integration-touching tests (`httpx`, filesystem, GitHub API) are marked `@pytest.mark.integration`.
+  - Integration-touching tests (`httpx`, filesystem, GitHub API) are marked
+    `@pytest.mark.integration`.
   - `conftest.py` factories are used rather than hand-rolled fixtures.
 - Debt direction
   - Does the PR reduce or at least not increase the number of `TypedDict` usages?

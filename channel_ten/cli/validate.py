@@ -4,15 +4,18 @@ Re-applies the full scraping validation pipeline to all published tournament
 YAML files:
 
   1. Rescrape the forum post (forum_post_url) for fresh tournament data.
-  2. Fetch the canonical winner name and VEKN number from the event calendar.
-  3. Enrich crypt cards and fix library card sections via krcg.
-  4. Fetch the official event date from the VEKN calendar for date-coherence.
-  4b. If --force-date is set and the calendar date differs from date_start,
+  2. Fetch the canonical event name from the event calendar. This overrides
+     names mis-parsed from a forum post (e.g. a poster's preamble note taken
+     for the tournament name), since the calendar entry is the source of truth.
+  3. Fetch the canonical winner name and VEKN number from the event calendar.
+  4. Enrich crypt cards and fix library card sections via krcg.
+  5. Fetch the official event date from the VEKN calendar for date-coherence.
+  5b. If --force-date is set and the calendar date differs from date_start,
       overwrite date_start with the calendar date (marks file dirty).
-  5. Run the full error_types() check (illegal_header, unconfirmed_winner,
+  6. Run the full error_types() check (illegal_header, unconfirmed_winner,
      limited_format, illegal_crypt, illegal_library, too_few_players,
      incoherent_date).
-  6. Move files that still have errors to twds/errors/<first_error>/.
+  7. Move files that still have errors to twds/errors/<first_error>/.
      Files without errors that were modified in place are written back.
 
 Scans all YAML files under twds/ except the ``changes_required/`` directory.
@@ -37,7 +40,12 @@ from channel_ten.models import Deck
 from channel_ten.output.yaml import reorder_tournament_dict
 from channel_ten.scraper._forum import extract_twd_from_thread
 from channel_ten.scraper._http import DEFAULT_DELAY_SECONDS, HEADERS
-from channel_ten.scraper._vekn import fetch_event_date, fetch_event_winner, fetch_player
+from channel_ten.scraper._vekn import (
+    fetch_event_date,
+    fetch_event_name,
+    fetch_event_winner,
+    fetch_player,
+)
 from channel_ten.validator import (
     canonicalize_card_names,
     enrich_card_ids,
@@ -170,6 +178,26 @@ def _filter_yaml_paths(twds_dir: Path, full_validation: bool) -> list[Path]:
     return yaml_files
 
 
+def _check_and_update_name(
+    client: httpx.Client,
+    data: dict[str, Any],
+    event_url: str,
+    delay: float = DEFAULT_DELAY_SECONDS,
+) -> bool:
+    """Mirror scraping step 2: update the tournament name from the VEKN calendar.
+
+    The calendar entry is the source of truth for the event name, since a
+    forum-post rescrape (step 1) reproduces any mis-parse baked into the
+    original post (e.g. a poster's preamble note mistaken for the name).
+    Mutates *data* in-place. Returns True if the name was changed.
+    """
+    calendar_name = fetch_event_name(client, event_url, delay)
+    if calendar_name and calendar_name != data.get("name"):
+        data["name"] = calendar_name
+        return True
+    return False
+
+
 def _check_and_update_winner(
     client: httpx.Client,
     data: dict[str, Any],
@@ -271,8 +299,16 @@ def run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     logger.error("forum rescrape error for %s: %s", path.name, exc)
 
-            # Step 2: check event calendar for canonical winner name + VEKN number
+            # Step 2: check event calendar for canonical event name
             event_url: str = data.get("event_url") or ""
+            if event_url and not dry_run:
+                try:
+                    if _check_and_update_name(client, data, event_url):
+                        dirty = True
+                except Exception as exc:
+                    logger.error("calendar name error for %s: %s", path.name, exc)
+
+            # Step 3: check event calendar for canonical winner name + VEKN number
             if event_url and not dry_run:
                 try:
                     if _check_and_update_winner(client, data, event_url):
@@ -280,7 +316,7 @@ def run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     logger.error("calendar check error for %s: %s", path.name, exc)
 
-            # Step 3: canonicalize names, enrich crypt cards and fix library sections
+            # Step 4: canonicalize names, enrich crypt cards and fix library sections
             # via krcg. Canonicalization runs first so enrichment/section lookups see
             # the official spelling (localized names, "The …" order, bare crypt names).
             deck_raw: dict[str, Any] = data.get("deck") or {}
@@ -302,7 +338,7 @@ def run(args: argparse.Namespace) -> int:
                 if id_fixes:
                     logger.debug("%s  card ids enriched:\n%s", path.name, "\n".join(id_fixes))
 
-            # Step 4: fetch official event date for date-coherence check
+            # Step 5: fetch official event date for date-coherence check
             calendar_date = None
             # --force-date needs the calendar date even in dry-run to report what would change.
             if event_url and (not dry_run or force_date):
@@ -311,7 +347,7 @@ def run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     logger.error("calendar date error for %s: %s", path.name, exc)
 
-            # Step 4b: force-update date_start from calendar if requested
+            # Step 5b: force-update date_start from calendar if requested
             if force_date and calendar_date is not None:
                 file_date = parse_date_field(data.get("date_start"))
                 if file_date != calendar_date:
@@ -332,7 +368,7 @@ def run(args: argparse.Namespace) -> int:
                             calendar_date,
                         )
 
-            # Step 5: full validation
+            # Step 6: full validation
             errors = error_types(data, calendar_date=calendar_date)
 
             if not errors:
@@ -367,7 +403,7 @@ def run(args: argparse.Namespace) -> int:
                         updated.append(path)
                 continue
 
-            # Step 6: move to errors/<first_error>/
+            # Step 7: move to errors/<first_error>/
             dest_dir = twds_dir / "errors" / errors[0]
             if dry_run:
                 logger.info(

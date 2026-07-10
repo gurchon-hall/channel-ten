@@ -167,6 +167,17 @@ After every non-trivial change, update documentation:
   a second, differently-named duplicate fork under a race condition. `create_branch`,
   `put_file`, and `delete_branch` take an explicit `repo=` param for this reason — always
   pass `repo=FORK_REPO` at fork-side call sites, never rely on their `TWDA_REPO` default.
+- Do not trust the forum-parsed tournament `name` as final. A poster can prepend a note
+  before the TWD header, shifting every line down and turning the note into `name`. Both
+  `pipeline._check_calendar_name` (scrape/import) and `cli/validate.py::_check_and_update_name`
+  (validate) override `name` with the VEKN event calendar's title (`fetch_event_name`) — do not
+  remove either check.
+- Do not change `_check_calendar_name` back to returning a plain `Tournament`. It returns
+  `tuple[Tournament, bool]` — the bool is `calendar_name_missing`, which
+  `pipeline.process_tournament` turns into an `"unconfirmed_name"` validation error so a
+  first-scrape deck whose name the calendar can't confirm gets routed to
+  `errors/unconfirmed_name/` for review instead of silently publishing an unverified (and
+  possibly forum-note-corrupted) name.
 - Do not open a new publish PR without first closing stale ones. `publish_all_as_single_pr`
   closes every open upstream PR headed from the fork (and deletes its branch) before
   creating this run's branch, except the branch matching today's run — this keeps at most

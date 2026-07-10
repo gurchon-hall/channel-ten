@@ -16,7 +16,15 @@ These two functions both fetch the event page but return different things:
 
 The word "name" in the first function refers to the *event* name, not a player name.
 If you see `"Could not extract event title"` in the logs, the tournament name was not
-overridden from the calendar — the winner and routing are unaffected.
+overridden from the calendar, and `pipeline.process_tournament` routes the deck to
+`errors/unconfirmed_name/` (see below) — the winner check is unaffected.
+
+`fetch_event_name` tries, in order: JSON-LD `name`, `<div class="componentheading">`,
+then `<h1>`. In practice almost every VEKN event-calendar page has neither JSON-LD nor
+an `<h1>` — the title lives in `componentheading` (a Joomla/JEvents template class).
+Do not remove that strategy or reorder it after `<h1>`; doing so reproduces the bug
+where `fetch_event_name` failed on nearly every event, firing `unconfirmed_name` far
+more often than the mis-parse case it exists to catch
 
 ---
 
@@ -34,6 +42,20 @@ fetch_event_winner(client, event_url, delay) -> tuple[str, int | None] | None
 
 The function never returns a plain string. All callers and test mocks must handle
 the tuple form.
+
+---
+
+## `_check_calendar_name` — return type
+
+```python
+pipeline._check_calendar_name(client, tournament, delay) -> tuple[Tournament, bool]
+```
+
+Mirrors `_check_calendar_winner`'s `(tournament, missing)` shape. `missing` is `True`
+only when `fetch_event_name` returns `None` (calendar page has no name data); it is
+`False` when the name was overridden, left unchanged because it already matched, or a
+fetch exception was caught. Test mocks that patch `fetch_event_name` still return a
+plain `str | None` — only the wrapping `_check_calendar_name` call returns the tuple.
 
 ---
 
@@ -73,6 +95,29 @@ authoritative and unambiguous.
 
 `unconfirmed_winner` should **not** appear for events where the standings table is
 present and includes player links.
+
+---
+
+## unconfirmed_name semantics
+
+`unconfirmed_name` mirrors `unconfirmed_winner` but has only **one** trigger, since
+there is no secondary field (like `vekn_number`) that can independently confirm the
+name from the YAML data alone:
+
+| Trigger | Meaning |
+| - | - |
+| `fetch_event_name` returns `None` | The calendar page has no `<h1>` or JSON-LD `name` — the event title could not be confirmed |
+
+Set only in `pipeline.process_tournament` (the `scrape`/`import` commands, i.e. first
+ingestion) via `_check_calendar_name`'s `calendar_name_missing` return value —
+`cli/validate.py`'s `_check_and_update_name` does not thread an equivalent signal, so a
+transient calendar fetch failure during a later `validate` run does not bounce an
+already-published file into `errors/unconfirmed_name/`.
+
+A network exception fetching the calendar page (as opposed to a page that loads but has
+no name) does **not** set `unconfirmed_name` — it is logged and swallowed, matching
+`_check_calendar_winner`'s handling of the same case, so a transient timeout does not
+misroute an otherwise-good deck.
 
 ---
 

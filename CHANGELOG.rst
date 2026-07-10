@@ -33,6 +33,20 @@ Changed
 Fixed
 -----
 
+- ``scraper/_vekn.py`` (``fetch_event_name``): the calendar name-lookup only tried
+  JSON-LD structured data and ``<h1>``, but VEKN's event-calendar pages (Joomla/JEvents)
+  actually render the title in ``<div class="componentheading">`` — neither JSON-LD nor
+  ``<h1>`` are present on most event pages. This made ``fetch_event_name`` fail almost
+  universally in production (confirmed via a live ``scrape`` run — nearly every event
+  logged ``"Could not extract event title"``), which meant the new ``unconfirmed_name``
+  check added above was firing on nearly every scraped tournament instead of only the
+  rare mis-parse case it was meant to catch. Added ``componentheading`` as a second
+  strategy, tried before the ``<h1>`` fallback.
+- ``parser/_helpers.py`` (``LineHelpers._repair_mojibake``) and ``_krcg_helper.py``
+  (``get_crypt_card``, ``get_library_card_type``): three ``except`` clauses used the
+  Python 2 multi-exception form (``except FooError, BarError:``), a syntax error under
+  Python 3 that made the entire package — and therefore every CLI subcommand and the
+  full test suite — fail to import.
 - ``parser/_header.py`` (``parse_header_lenient``): the venue/location was
   assumed to always be a single line, so multi-line venues (e.g. "Venue
   Name" on one line, "City, Country" on the next — common on the forum)
@@ -51,6 +65,23 @@ Fixed
   on ``parse``. Also corrected a wrong claim that ``import --limit`` requires
   a GitHub token — only ``--create-issue`` does; ``--github-token`` merely
   raises the deck-listing rate limit.
+- ``pipeline.py`` (``scrape``/``import``): a first-scrape deck whose name the VEKN event
+  calendar could not confirm (``fetch_event_name`` returns ``None``) was published
+  silently with whatever the forum-post parser produced — including a poster's preamble
+  note mistaken for the tournament name. ``_check_calendar_name`` now returns
+  ``tuple[Tournament, bool]`` (mirroring ``_check_calendar_winner``), and
+  ``process_tournament`` appends a new ``unconfirmed_name`` error when the calendar has no
+  name data, routing the deck to ``errors/unconfirmed_name/`` for review instead.
+- ``cli/validate.py``: the weekly re-validation pass rescraped the forum post
+  (step 1) but never re-checked the tournament name against the VEKN event
+  calendar, so a name mis-parsed from the original forum post (e.g. a
+  poster's preamble note swallowed as the tournament name, shifting every
+  following header line by one) stayed wrong forever — rescraping just
+  reproduced the same mis-parse from the same source text. Added
+  ``_check_and_update_name``, mirroring the existing ``_check_and_update_winner``
+  calendar check, so ``validate`` now overrides the name with the canonical
+  one from the event calendar page (``fetch_event_name``), matching what
+  ``scrape``/``import`` already do via ``pipeline._check_calendar_name``.
 - ``github.py`` (``ensure_fork``): every ``publish`` run called
   ``POST /forks`` unconditionally, trusting GitHub to treat it as a no-op
   when ``gurchon-hall/TWD`` already existed. That assumption doesn't always

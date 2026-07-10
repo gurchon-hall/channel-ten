@@ -104,10 +104,12 @@ def fetch_event_name(
 ) -> str | None:
     """
     Fetch the official event name from a VEKN event calendar page.
-    Tries two strategies in order:
+    Tries three strategies in order:
       1. JSON-LD structured data (``<script type="application/ld+json">``
          with ``name`` key).
-      2. HTML ``<h1>`` element text.
+      2. ``<div class="componentheading">`` text — the Joomla/JEvents template
+         class VEKN's event-calendar pages actually use for the title.
+      3. HTML ``<h1>`` element text.
     Returns a ``str``, or ``None`` if the name cannot be extracted.
     """
     soup = get_soup(client, event_url, delay)
@@ -129,7 +131,15 @@ def fetch_event_name(
                 logger.debug("Calendar name (JSON-LD) found: %r at %s", name, event_url)
                 return name
 
-    # --- Strategy 2: <h1> element ---
+    # --- Strategy 2: <div class="componentheading"> ---
+    componentheading = soup.find(class_="componentheading")
+    if componentheading:
+        name = componentheading.get_text(strip=True)
+        if name:
+            logger.debug("Calendar name (componentheading) found: %r at %s", name, event_url)
+            return name
+
+    # --- Strategy 3: <h1> element ---
     h1 = soup.find("h1")
     if h1:
         name = h1.get_text(strip=True)

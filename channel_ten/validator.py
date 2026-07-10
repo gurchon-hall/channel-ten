@@ -13,6 +13,12 @@ Mandatory tournament fields
   illegal_header     : any of name, location, date_start, rounds_format,
                        players_count, or event_url is absent or blank
                        (forum_post_url is optional — hand-crafted files may omit it)
+  unconfirmed_name   : set externally by pipeline.process_tournament (scrape/import only)
+                       when the VEKN event calendar page has no name data
+                       (fetch_event_name returns None). A forum-post mis-parse is
+                       syntactically indistinguishable from a real name, so this is not
+                       derivable from the YAML data alone and is not produced by
+                       error_types() itself.
   unconfirmed_winner : winner is absent/blank, or vekn_number is absent/None
   limited_format     : tournament name contains "Limited" (draft/limited event)
 

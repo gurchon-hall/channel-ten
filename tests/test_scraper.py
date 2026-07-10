@@ -338,6 +338,12 @@ EVENT_NAME_H1_HTML = """
 <body><h1>Grand Prix Paris 2025</h1></body></html>
 """
 
+EVENT_NAME_COMPONENTHEADING_HTML = """
+<html><head></head>
+<body><div class="componentheading">Praxis Seizure: Osnabrück</div>
+<h1>Wrong heading</h1></body></html>
+"""
+
 EVENT_NAME_NONE_HTML = """
 <html><head></head>
 <body><p>No name anywhere</p></body></html>
@@ -360,6 +366,21 @@ class TestFetchEventName:
 
     def test_json_ld_takes_priority_over_h1(self):
         soup = BeautifulSoup(EVENT_NAME_JSON_LD_HTML, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = fetch_event_name(mock_client, "https://example.com", delay=0)
+        assert result != "Wrong heading"
+
+    def test_componentheading_name(self):
+        """VEKN's event-calendar pages (Joomla/JEvents) put the title in this class."""
+        soup = BeautifulSoup(EVENT_NAME_COMPONENTHEADING_HTML, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = fetch_event_name(mock_client, "https://example.com", delay=0)
+        assert result == "Praxis Seizure: Osnabrück"
+
+    def test_componentheading_takes_priority_over_h1(self):
+        soup = BeautifulSoup(EVENT_NAME_COMPONENTHEADING_HTML, "lxml")
         mock_client = MagicMock()
         with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
             result = fetch_event_name(mock_client, "https://example.com", delay=0)
