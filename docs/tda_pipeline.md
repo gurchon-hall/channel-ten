@@ -43,10 +43,31 @@ Identical to a TWD post's deck block — `Deck Name:` / `Author:` / `Description
 `Author:` is usually a VEKN member number already (e.g. `3070069`) but is sometimes a
 non-numeric placeholder for a participant without one (e.g. `100WD1`, seen in a real
 archive for a walk-in player). `pipeline_tda.resolve_author` treats a numeric value as
-the VEKN number directly; a non-numeric value is resolved via the same VEKN
-player-registry lookup (`scraper.fetch_player`) TWD uses for winners. If that lookup
-fails too, the raw string is kept and the deck is still written (never dropped), under a
-slugified filename (`models.TdaDeck.yaml_filename`).
+a VEKN number and resolves the canonical player name from it via
+`scraper.fetch_player_by_id` (`https://www.vekn.net/player-registry/player/<id>`,
+confirmed against a live page — see below); a non-numeric value is resolved via the
+by-name lookup (`scraper.fetch_player`) TWD uses for winners. Either way, if the lookup
+fails the raw string is kept as the name and the deck is still written (never dropped) —
+under a slugified filename (`models.TdaDeck.yaml_filename`) when no VEKN number was
+resolvable at all. `process_tda_deck` syncs `deck.created_by` to the resolved name
+(the parser only ever sets it to the raw `Author:` line, e.g. `"1003838"`, which isn't
+human-readable on its own).
+
+**Caveat**: a numeric `Author:` value being present is not proof that it is *actually*
+a registered VEKN member number — see the Archon placeholder-number quirk below, where
+small ids like `101` can collide with an unrelated real player's genuinely low id. The
+resolved name is only as trustworthy as the source id.
+
+### `fetch_player_by_id` page structure
+
+Confirmed via a real page fetch (`.../player-registry/player/1003838`): the name lives
+in the same Joomla `componentheading` convention `fetch_event_name` already reads the
+event title from — `<div class="componentheading"><h3>Tom Lindberg (#1003838)</h3></div>`.
+The `" (#<id>)"` suffix is stripped to get the bare name. If VEKN ever changes this
+template, `fetch_player_by_id` will start returning `None` for every id (logged at
+debug level) rather than a wrong name — it does not fall back to a different selector
+the way `fetch_event_name` falls back through JSON-LD/`<h1>`, since only this one
+structure has been observed.
 
 ## `archon.xlsx` sheet layout
 

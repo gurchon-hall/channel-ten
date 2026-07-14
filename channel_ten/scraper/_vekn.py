@@ -12,9 +12,14 @@ import httpx
 
 from channel_ten.scraper._http import (
     DEFAULT_DELAY_SECONDS,
+    VEKN_PLAYER_REGISTRY_URL,
     VEKN_PLAYERS_URL,
     get_soup,
 )
+
+# The registry page's componentheading is "<Name> (#<vekn_id>)" — the id suffix is
+# redundant once we already have the id, and must be stripped to get a bare name.
+_REGISTRY_ID_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
 
 logger = logging.getLogger(__name__)
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -291,3 +296,37 @@ def fetch_player(
 
     logger.debug("No player found for %r", name)
     return None
+
+
+def fetch_player_by_id(
+    client: httpx.Client,
+    vekn_id: int,
+    delay: float = DEFAULT_DELAY_SECONDS,
+) -> str | None:
+    """
+    Look up a player's name by VEKN member number in the player registry.
+
+    Queries ``https://www.vekn.net/player-registry/player/<vekn_id>`` and reads the
+    name from ``<div class="componentheading"><h3>Name (#vekn_id)</h3></div>`` — the
+    same Joomla ``componentheading`` convention ``fetch_event_name`` reads the event
+    title from, confirmed against a live page (``.../player/1003838`` →
+    ``"Tom Lindberg (#1003838)"``).
+
+    Returns the bare player name (id suffix stripped), or ``None`` if the id does not
+    resolve to a page with that structure.
+    """
+    url = f"{VEKN_PLAYER_REGISTRY_URL}/{vekn_id}"
+    soup = get_soup(client, url, delay)
+
+    componentheading = soup.find(class_="componentheading")
+    if not componentheading:
+        logger.debug("No componentheading on player registry page: %s", url)
+        return None
+
+    text = componentheading.get_text(strip=True)
+    name = _REGISTRY_ID_SUFFIX_RE.sub("", text).strip()
+    if not name:
+        return None
+
+    logger.debug("Player registry lookup: %s → %r", url, name)
+    return name

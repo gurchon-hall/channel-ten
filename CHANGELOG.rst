@@ -31,6 +31,12 @@ Added
   ``validator.tda_deck_errors``. See ``docs/tda_pipeline.md`` for the source
   archive format and design rationale. New dependency: ``openpyxl`` (reads
   the archive's ``archon.xlsx`` tournament report).
+- ``scraper.fetch_player_by_id``: resolves a player's canonical name from their
+  VEKN member number via ``https://www.vekn.net/player-registry/player/<id>``
+  (same ``componentheading`` convention as ``fetch_event_name``). Used by
+  ``pipeline_tda.resolve_author`` so a numeric TDA ``Author:`` value (the
+  common case) produces a human-readable ``deck.created_by``/``author``
+  instead of the bare VEKN number.
 
 Changed
 -------

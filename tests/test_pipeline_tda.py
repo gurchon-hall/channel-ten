@@ -16,11 +16,35 @@ from channel_ten.pipeline_tda import process_tda_deck, resolve_author, route_tda
 
 
 class TestResolveAuthor:
-    def test_numeric_author_used_directly_without_lookup(self):
+    def test_numeric_author_resolved_via_player_registry_by_id(self):
         client = MagicMock()
-        with patch("channel_ten.pipeline_tda.fetch_player") as mock_fetch:
+        with (
+            patch(
+                "channel_ten.pipeline_tda.fetch_player_by_id", return_value="Tom Lindberg"
+            ) as mock_fetch_by_id,
+            patch("channel_ten.pipeline_tda.fetch_player") as mock_fetch_by_name,
+        ):
+            name, vekn_number = resolve_author(client, "1003838", delay=0)
+        mock_fetch_by_id.assert_called_once_with(client, 1003838, delay=0)
+        mock_fetch_by_name.assert_not_called()
+        assert name == "Tom Lindberg"
+        assert vekn_number == 1003838
+
+    def test_numeric_author_unresolvable_id_keeps_raw_value(self, caplog: pytest.LogCaptureFixture):
+        client = MagicMock()
+        with (
+            patch("channel_ten.pipeline_tda.fetch_player_by_id", return_value=None),
+            caplog.at_level(logging.WARNING),
+        ):
             name, vekn_number = resolve_author(client, "3070069", delay=0)
-        mock_fetch.assert_not_called()
+        assert name == "3070069"
+        assert vekn_number == 3070069
+        assert any("not found" in r.message for r in caplog.records)
+
+    def test_numeric_author_lookup_failure_keeps_raw_value(self):
+        client = MagicMock()
+        with patch("channel_ten.pipeline_tda.fetch_player_by_id", side_effect=RuntimeError("boom")):
+            name, vekn_number = resolve_author(client, "3070069", delay=0)
         assert name == "3070069"
         assert vekn_number == 3070069
 
@@ -70,6 +94,12 @@ class TestProcessTdaDeck:
         entry.deck.crypt = []
         _, errors = process_tda_deck(entry)
         assert "illegal_crypt" in errors
+
+    def test_syncs_deck_created_by_to_resolved_author(self):
+        entry = make_tda_deck(author="Tom Lindberg", author_vekn_number=1003838)
+        entry.deck.created_by = "1003838"  # stale raw value from the parser
+        result, _ = process_tda_deck(entry)
+        assert result.deck.created_by == "Tom Lindberg"
 
 
 # ---------------------------------------------------------------------------

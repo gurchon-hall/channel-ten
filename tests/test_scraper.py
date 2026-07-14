@@ -15,6 +15,7 @@ from channel_ten.scraper import (
     fetch_event_name,
     fetch_event_winner,
     fetch_player,
+    fetch_player_by_id,
     get_soup,
     iter_thread_urls,
     kunena_div_to_text,
@@ -705,6 +706,42 @@ EVENT_STANDINGS_NO_POS1_HTML = """
 </table>
 </body></html>
 """
+
+
+PLAYER_REGISTRY_HTML = """
+<html><body>
+<div class="componentheading"><h3>Tom Lindberg (#1003838)</h3></div>
+</body></html>
+"""
+
+PLAYER_REGISTRY_NO_COMPONENTHEADING_HTML = """
+<html><body><p>Not found</p></body></html>
+"""
+
+
+class TestFetchPlayerById:
+    def test_extracts_name_and_strips_id_suffix(self):
+        """Confirmed against a live page (player-registry/player/1003838)."""
+        soup = BeautifulSoup(PLAYER_REGISTRY_HTML, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = fetch_player_by_id(mock_client, 1003838, delay=0)
+        assert result == "Tom Lindberg"
+
+    def test_no_componentheading_returns_none(self):
+        soup = BeautifulSoup(PLAYER_REGISTRY_NO_COMPONENTHEADING_HTML, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = fetch_player_by_id(mock_client, 999999, delay=0)
+        assert result is None
+
+    def test_requests_expected_url(self):
+        soup = BeautifulSoup(PLAYER_REGISTRY_HTML, "lxml")
+        mock_client = MagicMock()
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup) as mock_get_soup:
+            fetch_player_by_id(mock_client, 1003838, delay=0)
+        args, _ = mock_get_soup.call_args
+        assert args[1].endswith("/player-registry/player/1003838")
 
 
 class TestFetchEventWinner:
