@@ -11,6 +11,7 @@ from channel_ten.models import (
     Deck,
     LibraryCard,
     LibrarySection,
+    TdaDeck,
     Tournament,
 )
 
@@ -149,3 +150,21 @@ def make_tournament(**kwargs: Any) -> Tournament:
     )
     defaults.update(kwargs)
     return Tournament.model_validate(defaults)
+
+
+def make_tda_deck(**kwargs: Any) -> TdaDeck:
+    defaults: dict[str, Any] = dict(
+        event_id="10367",
+        name="Finnish Nationals 2022",
+        location="Espoo - Finland",
+        date_start=date(2022, 11, 5),
+        rounds_format="3R+F",
+        players_count=45,
+        winner="Teemu Sainomaa",
+        winner_vekn_number=3070069,
+        author="3070069",
+        author_vekn_number=3070069,
+        deck=make_deck(),
+    )
+    defaults.update(kwargs)
+    return TdaDeck.model_validate(defaults)

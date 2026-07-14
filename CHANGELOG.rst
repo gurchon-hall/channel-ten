@@ -15,6 +15,23 @@ starting from v0.1.0.
 Unreleased
 ==========
 
+Added
+-----
+
+- New ``channel-ten tda-scrape`` subcommand and monthly
+  ``.github/workflows/tda-scrape.yml`` workflow: scrapes TDA (Tournament Deck
+  Archive — every participant's deck, not just the winner's) from
+  `smeea/vdb <https://github.com/smeea/vdb>`_'s
+  ``frontend/public/tournaments/*.zip`` archives, the only available source
+  for full tournament decklists. Writes one YAML file per deck to
+  ``eternal-vigilance/tda/YYYY/MM/<event_id>/<author_id>.yaml``, alongside
+  (not merged with) the existing TWD tree. New modules:
+  ``models.TdaDeck``, ``parser/_tda.py``, ``scraper/_tda.py``,
+  ``pipeline_tda.py``, ``output/tda_yaml.py``,
+  ``validator.tda_deck_errors``. See ``docs/tda_pipeline.md`` for the source
+  archive format and design rationale. New dependency: ``openpyxl`` (reads
+  the archive's ``archon.xlsx`` tournament report).
+
 Changed
 -------
 

@@ -9,23 +9,27 @@ Guidelines for automated agents (CI, coding, PR review) working on this reposito
 ```text
 channel_ten/
 ├── cli/             CLI entry points (one file per subcommand; no business logic)
-├── output/          Serializers: YAML and TXT writers
-├── parser/          TWD text-format parsers (header, deck, helpers)
-├── scraper/         HTTP scraping (forum, TWDA archive, VEKN calendar)
+├── output/          Serializers: YAML (TWD), TXT, and TDA YAML writers
+├── parser/          Text-format parsers (header, deck, helpers) — deck parser is TWD/TDA-shared
+├── scraper/         HTTP scraping (forum, TWDA archive, VDB TDA archive, VEKN calendar)
 ├── _krcg_helper.py  krcg card-database wrappers
 ├── _logger.py       Logging configuration (single source of truth)
 ├── github.py        GitHub REST API helpers and TWDA-specific operations
-├── models.py        Pydantic data models (canonical representation)
-├── pipeline.py      Shared scraping pipeline (process_tournament, route_tournament)
-├── publisher.py     GitHub PR orchestration (publish_all_as_single_pr, BatchPRResult)
-└── validator.py     Pure validation logic (no I/O)
+├── models.py        Pydantic data models: Tournament (TWD) + TdaDeck (TDA), shared Deck/CryptCard/...
+├── pipeline.py      Shared TWD pipeline (process_tournament, route_tournament)
+├── pipeline_tda.py  TDA pipeline (resolve_author, process_tda_deck, route_tda_deck)
+├── publisher.py     GitHub PR orchestration (publish_all_as_single_pr, BatchPRResult) — TWD only
+└── validator.py     Pure validation logic (no I/O) — TWD's error_types + TDA's tda_deck_errors
 tests/               pytest suite — mirrors channel_ten/ structure
 .github/workflows/   CI definitions (see below)
 ```
 
-Data repository: `gurchon-hall/eternal-vigilance` — YAML files organised as
-`YYYY/MM/<event_id>.yaml`. Upstream TWD archive: `GiottoVerducci/TWD` — TXT files under
-`decks/<event_id>.txt`.
+Data repository: `gurchon-hall/eternal-vigilance` — TWD YAML files organised as
+`YYYY/MM/<event_id>.yaml`; TDA YAML files (one per participant deck, not just the winner)
+organised as `tda/YYYY/MM/<event_id>/<author_id>.yaml`. Upstream TWD archive:
+`GiottoVerducci/TWD` — TXT files under `decks/<event_id>.txt`. TDA source archive:
+`smeea/vdb` — zips under `frontend/public/tournaments/<archive_id>.zip`, see
+`docs/tda_pipeline.md`. TDA has no `publish` step — it is never sent upstream anywhere.
 
 ---
 
@@ -38,6 +42,7 @@ Data repository: `gurchon-hall/eternal-vigilance` — YAML files organised as
 | `pre-commit.yml` | push to `main`, all PRs | ruff lint/format + full pytest suite |
 | `scrape.yml` | daily 06:00 UTC, push to `main` (src change), manual | Scrape VEKN forum → commit YAML to eternal-vigilance |
 | `twda-reimport.yml` | Monday 07:00 UTC, manual | Backfill from GiottoVerducci/TWD |
+| `tda-scrape.yml` | monthly (1st) 06:00 UTC, push to `main` (src change), manual | Scrape smeea/vdb TDA archives → commit YAML to eternal-vigilance/tda |
 | `validate.yml` | Sunday 20:00 UTC, manual | Re-validate + enrich YAML in eternal-vigilance |
 | `publish.yml` | Monday 08:00 UTC, manual | Open PR to GiottoVerducci/TWD |
 | `feature-review.yml` | issue opened with `enhancement` label | Copilot feasibility comment |
@@ -167,6 +172,16 @@ No business logic inline.
   non-dry-run publish, so at most one TWD PR is ever open at a time. Mocks for
   `publish_all_as_single_pr` tests must patch `list_open_prs_from_fork` (return `[]` if the
   test doesn't care about cleanup) or the real function will attempt a live GitHub call.
+- **`except A, B:` is not a Python 2 leftover — it's valid Python 3.14 (PEP 758)**:
+  `_krcg_helper.py` and `parser/_helpers.py` use the unparenthesized multi-exception form
+  (`except TypeError, ValueError:`), which only parses on Python ≥ 3.14 (`requires-python`
+  in `pyproject.toml`). Any tool or agent running on an older interpreter (its own `ast`
+  module, an IDE, a stale local venv) will report a `SyntaxError` here — that is a tooling
+  limitation, not a bug in the file. `ruff format` (target-version `py314`) actively
+  rewrites `except (A, B):` *into* this unparenthesized form, so do not "fix" it back to
+  parenthesized — the next `ruff format` run reintroduces the unparenthesized style anyway.
+  If you cannot get a real Python 3.14 locally to test against, patch a throwaway copy of
+  the file (never the committed one) instead of changing the syntax.
 
 ---
 

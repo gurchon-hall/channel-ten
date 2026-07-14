@@ -23,6 +23,7 @@ from channel_ten.validator import (
     fix_card_sections,
     missing_card_id_errors,
     parse_date_field,
+    tda_deck_errors,
     unresolved_card_errors,
 )
 
@@ -1062,3 +1063,59 @@ class TestMissingCardIdErrors:
         deck = _deck()
         with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
             assert missing_card_id_errors(deck) == []
+
+
+# ---------------------------------------------------------------------------
+# tda_deck_errors
+# ---------------------------------------------------------------------------
+
+
+class TestTdaDeckErrors:
+    def test_valid_deck_has_no_errors(self):
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            assert tda_deck_errors(_deck()) == []
+
+    def test_empty_crypt_is_illegal(self):
+        deck = _deck(crypt=[])
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_non_consecutive_groupings_illegal(self):
+        deck = _deck(
+            crypt_count=2,
+            crypt=[
+                CryptCard(
+                    count=1, name="A", capacity=4, disciplines="PRO", clan="Gangrel", grouping=4
+                ),
+                CryptCard(
+                    count=1, name="B", capacity=4, disciplines="PRO", clan="Gangrel", grouping=8
+                ),
+            ],
+        )
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_crypt_count_mismatch_illegal(self):
+        deck = _deck(crypt_count=5)  # actual sum is 2
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_empty_library_is_illegal(self):
+        deck = _deck(library_sections=[])
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_library_section_count_mismatch_illegal(self):
+        deck = _deck(
+            library_sections=[
+                LibrarySection(
+                    name="Master", count=5, cards=[LibraryCard(count=1, name="Blood Doll")]
+                )
+            ]
+        )
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_library_count_mismatch_illegal(self):
+        deck = _deck(library_count=5)  # actual section sum is 1
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_missing_card_id_reported_when_krcg_loaded(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert "missing_card_id" in tda_deck_errors(deck)

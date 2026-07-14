@@ -31,6 +31,7 @@ TXT format reference:
     ...
 """
 
+from channel_ten.output.tda_yaml import tda_deck_to_yaml_str, write_tda_deck_yaml
 from channel_ten.output.txt import tournament_to_txt, write_tournament_txt
 from channel_ten.output.yaml import (
     tournament_to_yaml_str,
@@ -42,4 +43,6 @@ __all__ = [
     "write_tournament_yaml",
     "tournament_to_txt",
     "write_tournament_txt",
+    "tda_deck_to_yaml_str",
+    "write_tda_deck_yaml",
 ]

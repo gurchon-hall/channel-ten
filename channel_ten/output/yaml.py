@@ -6,41 +6,14 @@ from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 
 from channel_ten.models import Tournament
-from channel_ten.output._common import date_subdir
+from channel_ten.output._common import JsonValue, date_subdir, reorder_dict, to_serializable
 
 _TOURNAMENT_FIELD_ORDER = list(Tournament.model_fields.keys())
 
 
 def reorder_tournament_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Return a new dict with keys ordered as per the Tournament model definition."""
-    ordered: dict[str, Any] = {k: data[k] for k in _TOURNAMENT_FIELD_ORDER if k in data}
-    for k in data:
-        if k not in ordered:
-            ordered[k] = data[k]
-    return ordered
-
-
-JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
-
-
-def _to_serializable(obj: Tournament) -> dict[str, JsonValue]:
-    """Convert a Pydantic model to a plain dict, preserving Python native types.
-
-    Uses model_dump() (not JSON round-trip) so that date objects remain as
-    datetime.date instances — ruamel.yaml then renders them as bare YAML dates
-    (2026-03-15) rather than quoted strings ('2026-03-15').
-    """
-
-    def _filter_none(value: JsonValue) -> JsonValue:
-        if isinstance(value, dict):
-            return {k: _filter_none(v) for k, v in value.items() if v is not None}
-        if isinstance(value, list):
-            return [_filter_none(item) for item in value]
-        return value
-
-    result = _filter_none(obj.model_dump())
-    assert isinstance(result, dict)
-    return result
+    return reorder_dict(data, _TOURNAMENT_FIELD_ORDER)
 
 
 def _prepare_yaml_dict(tournament: Tournament) -> dict[str, JsonValue]:
@@ -48,7 +21,7 @@ def _prepare_yaml_dict(tournament: Tournament) -> dict[str, JsonValue]:
     Build an ordered dict suitable for YAML output.
     Handles multiline description as a literal block scalar (|).
     """
-    d = _to_serializable(tournament)
+    d = to_serializable(tournament)
 
     if (
         "deck" in d

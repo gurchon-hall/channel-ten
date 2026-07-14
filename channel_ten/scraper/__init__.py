@@ -1,11 +1,14 @@
 """
-Scraper for https://www.vekn.net/forum/event-reports-and-twd
+Scraper for https://www.vekn.net/forum/event-reports-and-twd, and for VDB
+Tournament Deck Archives (TDA).
 
 Submodules:
   _http   — low-level HTTP helpers and shared constants
   _icons  — topic icon detection
   _forum  — forum index traversal and per-thread TWD extraction
   _vekn   — VEKN event calendar and player registry lookups
+  _twda   — read-only source for the GiottoVerducci/TWD archive
+  _tda    — read-only source for smeea/vdb Tournament Deck Archives
 """
 
 import time as time  # Ensure time module is available for patching in tests
@@ -27,6 +30,15 @@ from channel_ten.scraper._icons import (
     ICON_MERGED,
     ICON_SOLVED,
     detect_topic_icon,
+)
+from channel_ten.scraper._tda import (
+    VDB_RAW_BASE,
+    TdaEventMeta,
+    fetch_tda_archive,
+    iter_tda_deck_texts,
+    list_tda_archive_ids,
+    parse_archon_xlsx,
+    read_archon_xlsx,
 )
 from channel_ten.scraper._twda import (
     TWDA_DECKS_FOLDER,
@@ -53,6 +65,7 @@ __all__ = [
     "ICON_SOLVED",
     "TWDA_DECKS_FOLDER",
     "TWDA_RAW_BASE",
+    "VDB_RAW_BASE",
     # HTTP helpers
     "get_soup",
     "kunena_div_to_text",
@@ -71,4 +84,11 @@ __all__ = [
     "fetch_twda_txt",
     "is_twda_import",
     "list_twda_event_ids",
+    # smeea/vdb TDA archive
+    "TdaEventMeta",
+    "fetch_tda_archive",
+    "iter_tda_deck_texts",
+    "list_tda_archive_ids",
+    "parse_archon_xlsx",
+    "read_archon_xlsx",
 ]
