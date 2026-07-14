@@ -176,8 +176,8 @@ def parse_archon_xlsx(data: bytes) -> TdaEventMeta:
     info_rows = list(wb[_TOURNAMENT_INFO_SHEET].iter_rows(values_only=True))
     info = _row_label_map(info_rows)
 
-    name = str(info["Event Name:"][1])
-    location = str(info["City:"][1])
+    name = str(info["Event Name:"][1]).strip()
+    location = str(info["City:"][1]).strip()
     event_date = info["Event Date (DD-MON-YY):"][1]
     if isinstance(event_date, datetime):
         date_start = event_date.date()
@@ -240,7 +240,7 @@ def _winner_from_standings(rows: list[tuple[object, ...]]) -> tuple[str, int | N
     for row in rows[header_idx + 1 :]:
         if row and row[0] == 1:
             seat = row[2] if len(row) > 2 and isinstance(row[2], int) else None
-            return str(row[3]), seat
+            return str(row[3]).strip(), seat
 
     raise ValueError("Standings sheet has no Final Rank 1 row")
 
