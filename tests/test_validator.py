@@ -23,6 +23,7 @@ from channel_ten.validator import (
     fix_card_sections,
     missing_card_id_errors,
     parse_date_field,
+    tda_deck_errors,
     unresolved_card_errors,
 )
 
@@ -394,12 +395,10 @@ class TestFixCardSections:
         return _ctx()
 
     def test_no_changes_when_sections_correct(self):
-        deck = _make_deck_with_sections(
-            [
-                _section("Master", [_card("Villein", 3)]),
-                _section("Action", [_card("Govern the Unaligned", 2)]),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section("Master", [_card("Villein", 3)]),
+            _section("Action", [_card("Govern the Unaligned", 2)]),
+        ])
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
         assert fixes == []
@@ -408,14 +407,12 @@ class TestFixCardSections:
 
     def test_moves_card_to_correct_section(self):
         # Govern the Unaligned is in Master — should move to Action
-        deck = _make_deck_with_sections(
-            [
-                _section(
-                    "Master",
-                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-                ),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section(
+                "Master",
+                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+            ),
+        ])
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
 
@@ -433,14 +430,12 @@ class TestFixCardSections:
         assert action.count == 1
 
     def test_library_count_updated(self):
-        deck = _make_deck_with_sections(
-            [
-                _section(
-                    "Master",
-                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-                ),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section(
+                "Master",
+                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+            ),
+        ])
         with self._patch_krcg():
             fix_card_sections(deck)
         assert deck.library_count == 3  # unchanged total
@@ -467,12 +462,10 @@ class TestFixCardSections:
     def test_sections_rebuilt_in_type_order(self):
         """After fixing, sections must follow krcg TYPE_ORDER."""
         # Put Reaction before Master deliberately
-        deck = _make_deck_with_sections(
-            [
-                _section("Reaction", [_card("Deflection", 2)]),
-                _section("Master", [_card("Villein", 3)]),
-            ]
-        )
+        deck = _make_deck_with_sections([
+            _section("Reaction", [_card("Deflection", 2)]),
+            _section("Master", [_card("Villein", 3)]),
+        ])
         # Both are already correct, so force a move to trigger rebuild.
         # Put Mirror Walk (Action Modifier) in the Master section.
         deck.library_sections[1].cards.append(LibraryCard(name="Mirror Walk", count=1))
@@ -1062,3 +1055,59 @@ class TestMissingCardIdErrors:
         deck = _deck()
         with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
             assert missing_card_id_errors(deck) == []
+
+
+# ---------------------------------------------------------------------------
+# tda_deck_errors
+# ---------------------------------------------------------------------------
+
+
+class TestTdaDeckErrors:
+    def test_valid_deck_has_no_errors(self):
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=False):
+            assert tda_deck_errors(_deck()) == []
+
+    def test_empty_crypt_is_illegal(self):
+        deck = _deck(crypt=[])
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_non_consecutive_groupings_illegal(self):
+        deck = _deck(
+            crypt_count=2,
+            crypt=[
+                CryptCard(
+                    count=1, name="A", capacity=4, disciplines="PRO", clan="Gangrel", grouping=4
+                ),
+                CryptCard(
+                    count=1, name="B", capacity=4, disciplines="PRO", clan="Gangrel", grouping=8
+                ),
+            ],
+        )
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_crypt_count_mismatch_illegal(self):
+        deck = _deck(crypt_count=5)  # actual sum is 2
+        assert "illegal_crypt" in tda_deck_errors(deck)
+
+    def test_empty_library_is_illegal(self):
+        deck = _deck(library_sections=[])
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_library_section_count_mismatch_illegal(self):
+        deck = _deck(
+            library_sections=[
+                LibrarySection(
+                    name="Master", count=5, cards=[LibraryCard(count=1, name="Blood Doll")]
+                )
+            ]
+        )
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_library_count_mismatch_illegal(self):
+        deck = _deck(library_count=5)  # actual section sum is 1
+        assert "illegal_library" in tda_deck_errors(deck)
+
+    def test_missing_card_id_reported_when_krcg_loaded(self):
+        deck = _deck()
+        with patch("channel_ten.validator.is_krcg_loaded", return_value=True):
+            assert "missing_card_id" in tda_deck_errors(deck)

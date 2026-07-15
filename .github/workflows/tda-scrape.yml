@@ -1,0 +1,120 @@
+name: TDA Scrape smeea/vdb
+
+on:
+  # Run monthly — 1st of the month at 06:00 UTC. TDA archives (full VDB
+  # tournament reports) are added far less often than TWD forum posts, so a
+  # daily cron like scrape.yml's would be wasteful.
+  schedule:
+    - cron: "0 6 1 * *"
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Process at most N archives (default: all)"
+        required: false
+        default: ""
+      overwrite:
+        description: "Overwrite existing YAML files?"
+        type: boolean
+        default: false
+
+  # Run on push to main (useful during development)
+  push:
+    branches: [main]
+    paths:
+      - "channel_ten/**"
+      - "pyproject.toml"
+      - ".github/workflows/tda-scrape.yml"
+
+concurrency:
+  group: tda-scrape
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+
+  tda-scrape:
+    needs: pre-commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push to eternal-vigilance
+
+    steps:
+      - name: Checkout channel-ten
+        uses: actions/checkout@v7
+        with:
+          path: channel-ten
+
+      - name: Checkout eternal-vigilance
+        uses: actions/checkout@v7
+        with:
+          repository: gurchon-hall/eternal-vigilance
+          token: ${{ secrets.PAT_TOKEN }}
+          path: eternal-vigilance
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.0
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Set UTF-8 encoding (required on Windows runners)
+        run: echo "PYTHONUTF8=1" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: uv sync --group dev --project ./channel-ten
+
+      - name: Build tda-scrape command
+        id: build_cmd
+        run: |
+          CMD="uv run --project ./channel-ten channel-ten tda-scrape --tda-dir eternal-vigilance/tda"
+
+          LIMIT="${{ github.event.inputs.limit }}"
+          if [ -n "$LIMIT" ]; then
+            CMD="$CMD --limit $LIMIT"
+          fi
+
+          if [ "${{ github.event.inputs.overwrite }}" = "true" ]; then
+            CMD="$CMD --overwrite"
+          fi
+          echo "cmd=$CMD" >> "$GITHUB_OUTPUT"
+
+      - name: Scrape TDA archives
+        continue-on-error: true
+        run: ${{ steps.build_cmd.outputs.cmd }}
+
+      - name: Check for new files
+        id: git_status
+        working-directory: eternal-vigilance
+        run: |
+          git add -A
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --staged --stat
+          fi
+
+      - name: Commit and push new YAML files
+        if: steps.git_status.outputs.changed == 'true'
+        working-directory: eternal-vigilance
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: scrape VTES TDA $(date -u +%Y-%m-%d)"
+
+          # Retry up to 3 times in case of race conditions with other pushes
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              echo "Push successful on attempt $attempt"
+              exit 0
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Push failed on attempt $attempt, retrying..."
+              sleep 2
+            fi
+          done
+          echo "Push failed after 3 attempts"
+          exit 1

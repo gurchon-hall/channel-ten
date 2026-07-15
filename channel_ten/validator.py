@@ -73,16 +73,14 @@ MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "10"))
 # krcg on every enrichment pass (enabling safe re-enrichment as krcg data
 # evolves). id follows a stricter rule — once attributed it must never be
 # cleared — so it is handled separately with an explicit "set only if None" guard.
-_ENRICH_FIELDS: frozenset[str] = frozenset(
-    {
-        "capacity",
-        "disciplines",
-        "title",
-        "clan",
-        "grouping",
-        "path",
-    }
-)
+_ENRICH_FIELDS: frozenset[str] = frozenset({
+    "capacity",
+    "disciplines",
+    "title",
+    "clan",
+    "grouping",
+    "path",
+})
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers
@@ -337,6 +335,51 @@ def unresolved_card_errors(deck: Deck) -> list[str]:
     library_cards = _iter_library_cards(deck)
     if any(not krcg_card_search(c.name) for c in library_cards):
         errors.append("illegal_library")
+
+    return errors
+
+
+def tda_deck_errors(deck: Deck) -> list[str]:
+    """Return structural error-type strings for one TDA deck.
+
+    Mirrors the deck-level ``illegal_crypt``/``illegal_library`` rules
+    ``error_types()`` applies to TWD (crypt groupings form at most two
+    consecutive integers, counts match declared totals), operating directly on
+    an already-validated ``Deck`` instead of a raw dict — TDA decks are always
+    parsed straight into a ``Deck`` model, so there is no raw-YAML stage to
+    guard against here the way ``error_types()`` does for TWD.
+    """
+    errors: list[str] = []
+
+    if not deck.crypt:
+        errors.append("illegal_crypt")
+    else:
+        groupings = {c.grouping for c in deck.crypt if isinstance(c.grouping, int)}
+        illegal_crypt = len(groupings) > 2 or (
+            len(groupings) == 2 and max(groupings) - min(groupings) != 1
+        )
+        if not illegal_crypt and deck.crypt_count != sum(c.count for c in deck.crypt):
+            illegal_crypt = True
+        if illegal_crypt:
+            errors.append("illegal_crypt")
+
+    if not deck.library_sections:
+        errors.append("illegal_library")
+    else:
+        illegal_library = False
+        for section in deck.library_sections:
+            if section.count != sum(c.count for c in section.cards):
+                illegal_library = True
+                break
+        if not illegal_library and deck.library_count != sum(
+            s.count for s in deck.library_sections
+        ):
+            illegal_library = True
+        if illegal_library:
+            errors.append("illegal_library")
+
+    if missing_card_id_errors(deck):
+        errors.append("missing_card_id")
 
     return errors
 

@@ -8,6 +8,7 @@ Scrape tournament winning decks (TWD) from the
 [![TWD resync archive](https://github.com/gurchon-hall/channel-ten/actions/workflows/twda-reimport.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/twda-reimport.yml)
 [![Validate VTES TWD](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/validate.yml)
 [![Publish TWD Deck PRs](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/publish.yml)
+[![TDA Scrape smeea/vdb](https://github.com/gurchon-hall/channel-ten/actions/workflows/tda-scrape.yml/badge.svg)](https://github.com/gurchon-hall/channel-ten/actions/workflows/tda-scrape.yml)
 
 ## Data format
 
@@ -25,6 +26,26 @@ The forum is not the complete record: some TWDs only ever made it into the
 GiottoVerducci/TWD archive. The `import` command backfills those: it imports every
 `decks/{event_id}.txt` whose `event_id` is **not already present in the base**, running each through
 the same enrichment/validation pipeline as `scrape`.
+
+## TDA data format (Tournament Deck Archive)
+
+TWD only ever holds the *winning* deck of a tournament. TDA (Tournament Deck Archive) is a
+separate, parallel dataset holding **every participant's** deck, sourced from
+[`smeea/vdb`](https://github.com/smeea/vdb)'s `frontend/public/tournaments/*.zip` archives — the
+only available source for full tournament decklists, since no official VEKN archive of them exists.
+Each archive is one tournament: a VEKN "Archon" tournament-report spreadsheet (`archon.xlsx`) plus
+one deck `.txt` per participant, in the same textual format as a TWD post's deck block.
+
+Because one tournament yields many decks, TDA files are stored one directory level deeper than TWD:
+`eternal-vigilance/tda/YYYY/MM/<event_id>/<author_id>.yaml`, where `event_id` is the archive's zip
+filename stem (numeric for events with a VEKN calendar id, e.g. `10367`; a short slug like `online1`
+for recurring online events that never got one) and `author_id` is the deck author's VEKN member
+number when resolvable, or a slug of the raw author string otherwise. See
+[`docs/tda_pipeline.md`](docs/tda_pipeline.md) for the full archive/spreadsheet layout this
+depends on.
+
+TDA and TWD are independent datasets with different shapes (one deck vs. many decks per event) —
+they are never merged into the same file or directory tree.
 
 ## Installation
 
@@ -67,6 +88,16 @@ pointing at the root of a TWD data checkout (default: `twds/`).
 
 Note: only `--create-issue` strictly requires a GitHub token (with `public_repo` scope) —
 `--github-token`/`$GITHUB_TOKEN` is otherwise optional and only raises the deck-listing rate limit.
+
+#### Command `tda-scrape`: fetch TDA archives (every participant's deck) from smeea/vdb
+
+| Argument | Description | Mandatory | Default |
+| -------- | ----------- | --------- | ------- |
+| `--tda-dir` | Directory to write YAML files to (`<dir>/YYYY/MM/<event_id>/<author_id>.yaml`) | No | `tda/` |
+| `--delay` | Seconds between HTTP requests | No | `1.5` |
+| `--overwrite` | Overwrite existing YAML files | No | `False` |
+| `--limit` | Process at most N archives (for testing) | No | `None` (process all) |
+| `--github-token` | GitHub token to raise the archive-listing rate limit; falls back to `$GITHUB_TOKEN` | No | `None` |
 
 #### Command `parse`: convert a single file between .txt and YAML
 
@@ -179,6 +210,14 @@ The workflow in `.github/workflows/publish.yml`:
   the new one, so at most one TWD PR is open at a time
 - Commits a Markdown publish report to `eternal-vigilance/publish/YYYY/MM/`
 
+The workflow in `.github/workflows/tda-scrape.yml`:
+
+- Runs monthly, on the 1st at 06:00 UTC (TDA archives are added far less often than TWD forum posts)
+- Also triggered on push to `main` when source files change
+- Can be triggered manually with optional `limit` and `overwrite` inputs
+- Scrapes smeea/vdb TDA archives and commits new YAML files to
+  [eternal-vigilance](https://github.com/gurchon-hall/eternal-vigilance)`/tda/`
+
 The workflow in `.github/workflows/pre-commit.yml`:
 
 - Runs on every push to `main` and on pull requests
@@ -232,36 +271,42 @@ channel_ten/
 │   ├── parse.py           # CLI command: parse .txt ↔ .yaml
 │   ├── publish.py         # CLI command: publish decks to GitHub
 │   ├── scrape.py          # CLI command: scrape the VEKN forum
+│   ├── tda_scrape.py      # CLI command: scrape smeea/vdb TDA archives
 │   └── validate.py        # CLI command: re-validate published YAML files
 ├── output/
 │   ├── __init__.py
-│   ├── _common.py         # Output shared utilities
+│   ├── _common.py         # Output shared utilities (to_serializable, reorder_dict, date_subdir)
+│   ├── tda_yaml.py        # TDA YAML serializer
 │   ├── txt.py             # TXT serializer
 │   └── yaml.py            # YAML serializer + reorder_tournament_dict
 ├── parser/
 │   ├── __init__.py
-│   ├── _deck.py           # Deck section parser
+│   ├── _deck.py           # Deck section parser (shared by TWD and TDA)
 │   ├── _header.py         # Tournament header parser
 │   ├── _helpers.py        # Parser utilities
+│   ├── _tda.py            # Top-level TDA deck text parser
 │   └── _twd.py            # Top-level TWD text format parser
 ├── scraper/
 │   ├── __init__.py
 │   ├── _forum.py          # Forum index traversal and TWD extraction
 │   ├── _http.py           # Low-level HTTP helpers and constants
 │   ├── _icons.py          # Topic icon detection
+│   ├── _tda.py            # smeea/vdb TDA archive listing, fetching and archon.xlsx parsing
 │   ├── _twda.py           # GiottoVerducci/TWD archive listing and fetching
 │   └── _vekn.py           # VEKN event calendar and player registry lookups
 ├── _krcg_helper.py        # krcg card-database wrappers (lookup, enrichment, canonicalization)
 ├── _logger.py             # Logging configuration (setup_logging)
 ├── github.py              # GitHub REST API helpers and TWDA-specific operations
-├── models.py              # Pydantic data models (Card, CryptCard, LibraryCard, Deck, Tournament)
-├── pipeline.py            # Shared scraping pipeline (process_tournament, route_tournament)
+├── models.py              # Pydantic data models
+|                          # (Card, CryptCard, LibraryCard, Deck, Tournament, TdaDeck)
+├── pipeline.py            # Shared TWD pipeline (process_tournament, route_tournament)
+├── pipeline_tda.py        # TDA pipeline (resolve_author, process_tda_deck, route_tda_deck)
 ├── publisher.py           # GitHub PR orchestration (publish_all_as_single_pr, BatchPRResult)
-└── validator.py           # YAML validation logic
+└── validator.py           # YAML validation logic (TWD's error_types + TDA's tda_deck_errors)
 scripts/
 └── migrate_card_names.py  # One-time migration: rename cards and backfill IDs in eternal-vigilance
 tests/
-├── conftest.py            # Shared test factories (make_tournament, etc.)
+├── conftest.py            # Shared test factories (make_tournament, make_tda_deck, etc.)
 ├── test_cli_common.py
 ├── test_cli_parse.py
 ├── test_cli_publish.py
@@ -269,18 +314,23 @@ tests/
 ├── test_cli_validate.py
 ├── test_krcg_helper.py
 ├── test_models.py
+├── test_models_tda.py
 ├── test_output.py
+├── test_output_tda.py
 ├── test_parser.py
 ├── test_parser_extras.py
+├── test_parser_tda.py
+├── test_pipeline_tda.py
 ├── test_publisher.py
 ├── test_scraper.py
 ├── test_scraper_icons.py
+├── test_scraper_tda.py
 └── test_validator.py
-                               # TWD data and publish reports live in gurchon-hall/eternal-vigilance
-.github/
+.github/                   # TWD/TDA data and publish reports live in gurchon-hall/eternal-vigilance
 └── workflows/
     ├── scrape.yml         # CRON scrape at 06:00 UTC every day
     ├── import.yml         # CRON import from GiottoVerducci/TWD at 07:00 UTC every Monday
+    ├── tda-scrape.yml     # CRON scrape smeea/vdb TDA archives at 06:00 UTC on the 1st of the month
     ├── validate.yml       # CRON re-validate at 20:00 UTC every Sunday
     ├── publish.yml        # CRON publish at 08:00 UTC every Monday
     ├── pre-commit.yml     # Pre-commit checks on push / PR

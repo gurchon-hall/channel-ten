@@ -13,7 +13,15 @@ from the VEKN forum and exports them as structured YAML files.  The pipeline is:
 scrape / import → parse → enrich (krcg) → validate → output (YAML / TXT) → publish (GitHub PR)
 ```
 
-Data lives in the sibling repository `gurchon-hall/eternal-vigilance`.
+It also runs a second, parallel pipeline for TDA (Tournament Deck Archive — every
+participant's deck, not just the winner's), sourced from `smeea/vdb` instead of the VEKN
+forum: `tda-scrape → parse (parser/_tda.py) → enrich (krcg, reused) → validate
+(validator.tda_deck_errors) → output (output/tda_yaml.py)`. TDA has no `publish` step.
+See `docs/tda_pipeline.md` for the source archive format and `AGENTS.md`'s repo map for
+which modules are TWD-only, TDA-only, or shared.
+
+Data lives in the sibling repository `gurchon-hall/eternal-vigilance`, TWD under
+`YYYY/MM/<event_id>.yaml` and TDA under `tda/YYYY/MM/<event_id>/<author_id>.yaml`.
 Card data comes from the `krcg` library (≥ 5.0).
 
 ---
@@ -182,3 +190,20 @@ After every non-trivial change, update documentation:
   closes every open upstream PR headed from the fork (and deletes its branch) before
   creating this run's branch, except the branch matching today's run — this keeps at most
   one open TWD PR at a time. This step is skipped on `--dry-run`.
+- Do not bend `Tournament`/`pipeline.py`/`output/yaml.py` to fit TDA's shape (one event
+  → many decks, `event_id` that can be non-numeric like `"online1"`, no mandatory
+  `event_url`). Use `TdaDeck` (`models.py`), `pipeline_tda.py`, and `output/tda_yaml.py`
+  instead — they already reuse everything that *is* shape-compatible (`Deck`,
+  `parser._deck.parse_deck_block`, the krcg enrichment functions, `scraper.fetch_player`,
+  `pipeline.RouteCounters`). See `docs/tda_pipeline.md`.
+- Do not treat a TDA archive's numeric zip filename as a *confirmed* VEKN calendar event
+  id, and do not add a VEKN-calendar cross-check step to the TDA pipeline to "confirm"
+  it the way TWD does for `name`/`winner`. It is a reasonable, documented assumption
+  (see `docs/tda_pipeline.md`) used only to build an informational `event_url` — TDA's
+  authoritative source is `archon.xlsx`, not a forum post, so it doesn't have the
+  mis-parse failure mode that makes the TWD cross-check necessary.
+- Do not treat a numeric TDA `Author:` value as proof of a real VEKN member number. The
+  Archon tool assigns small placeholder numbers (seen: 101–125) for participants without
+  VEKN registration in recurring online events. This is a source data-quality limitation,
+  not a bug in `pipeline_tda.resolve_author` — the user-specified rule (numeric → use
+  directly, non-numeric → resolve via the player registry) is implemented as given.

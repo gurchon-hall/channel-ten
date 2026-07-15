@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 FORUM_BASE = "https://www.vekn.net"
 FORUM_INDEX = "https://www.vekn.net/forum/event-reports-and-twd"
 VEKN_PLAYERS_URL = "https://www.vekn.net/event-calendar/players"
+VEKN_PLAYER_REGISTRY_URL = "https://www.vekn.net/player-registry/player"
 
 # Kunena paginates with ?limitstart=N
 TOPICS_PER_PAGE = 20

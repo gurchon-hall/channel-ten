@@ -170,3 +170,71 @@ class Tournament(BaseModel):
             return f"{self.event_id}.txt"
         # Fallback: should not happen if event_url is valid
         raise ValueError("Cannot derive filename: event_id is missing")
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+class TdaDeck(BaseModel):
+    """
+    One participant's deck from a VDB Tournament Deck Archive (TDA) entry.
+
+    Unlike a TWD ``Tournament`` (one winning deck per event), a TDA archive holds
+    every participant's deck for one event; this model represents a single one of
+    those decks plus the event metadata it belongs to (duplicated across every
+    deck of the same event, one YAML file per deck).
+
+    Mandatory fields:
+      1. event_id     — VDB archive id (zip filename stem); numeric for events with
+                         a VEKN calendar id, otherwise a slug like "online1"
+      2. name          — event name (archon.xlsx "Event Name:")
+      3. location      — archon.xlsx "City:"
+      4. date_start
+      5. rounds_format — e.g. "3R+F", derived from archon.xlsx's round count
+      6. players_count
+      7. winner
+      8. author        — raw "Author:" line from the deck text (VEKN number or name)
+      9. deck
+
+    Optional:
+      - winner_vekn_number, event_url (only when event_id is numeric),
+        archive_url (source .zip, for traceability), author_vekn_number
+    """
+
+    # --- Mandatory ---
+    event_id: str
+    name: str
+    location: str
+    date_start: date
+    date_end: date | None = None
+    rounds_format: str
+    players_count: int
+    winner: str
+    author: str
+    deck: Deck
+
+    # --- Optional ---
+    winner_vekn_number: int | None = None
+    event_url: str | None = None
+    archive_url: str | None = None
+    author_vekn_number: int | None = None
+
+    @field_validator("rounds_format")
+    @classmethod
+    def validate_rounds_format(cls, v: str) -> str:
+        if not re.fullmatch(r"\d+R\+F", v):
+            raise ValueError(f"rounds_format must match 'NR+F' (e.g. '3R+F'), got: '{v}'")
+        return v
+
+    @field_validator("date_start", "date_end", mode="before")
+    @classmethod
+    def parse_date(cls, v: str | date | None) -> date | None:
+        return Tournament.parse_date(v)
+
+    @property
+    def yaml_filename(self) -> str:
+        """{author_vekn_number}.yaml when resolved, else a slug of the raw author string."""
+        if self.author_vekn_number is not None:
+            return f"{self.author_vekn_number}.yaml"
+        slug = _SLUG_RE.sub("_", self.author.strip().lower()).strip("_")
+        return f"{slug or 'unknown'}.yaml"
