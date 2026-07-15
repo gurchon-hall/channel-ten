@@ -74,7 +74,11 @@ plain `str | None` — only the wrapping `_check_calendar_name` call returns the
 - Short-circuits immediately when `tournament.vekn_number is not None` — no registry
   lookup needed.
 - Otherwise calls `fetch_player(name)` to obtain the canonical name and VEKN number.
-  This lookup can fail (return `None`) when the name is ambiguous in the registry.
+  This lookup can fail (return `None`) when the name is ambiguous in the registry —
+  or, silently, when the run's `httpx.Client` was never logged into vekn.net, since
+  the player registry serves a bare login form to anonymous requests. See
+  `cli._common.vekn_login_from_env` and the "player registry is login-gated" pitfall
+  in `AGENTS.md`.
 
 ---
 

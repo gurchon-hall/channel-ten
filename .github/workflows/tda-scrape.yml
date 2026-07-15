@@ -83,6 +83,9 @@ jobs:
 
       - name: Scrape TDA archives
         continue-on-error: true
+        env:
+          VEKN_USERNAME: ${{ secrets.VEKN_USERNAME }}
+          VEKN_PASSWORD: ${{ secrets.VEKN_PASSWORD }}
         run: ${{ steps.build_cmd.outputs.cmd }}
 
       - name: Check for new files

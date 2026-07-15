@@ -56,6 +56,9 @@ jobs:
 
       - name: Validate Scraped tournaments
         continue-on-error: true
+        env:
+          VEKN_USERNAME: ${{ secrets.VEKN_USERNAME }}
+          VEKN_PASSWORD: ${{ secrets.VEKN_PASSWORD }}
         run: |
           FLAGS="--twds-dir eternal-vigilance --verbose"
           if [[ "${{ github.event_name }}" == "schedule" ]]; then

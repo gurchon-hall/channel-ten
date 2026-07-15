@@ -2,12 +2,13 @@
 
 import logging
 import runpy
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from channel_ten._logger import setup_logging
 from channel_ten.cli import _build_parser, main  # pyright: ignore[reportPrivateUsage]
+from channel_ten.cli._common import vekn_login_from_env
 
 # ---------------------------------------------------------------------------
 # _build_parser / main
@@ -81,3 +82,38 @@ class TestSetupLogging:
         setup_logging(True)
         logger = logging.getLogger("channel_ten")
         assert logger.level == logging.DEBUG
+
+
+# ---------------------------------------------------------------------------
+# vekn_login_from_env
+# ---------------------------------------------------------------------------
+
+
+class TestVeknLoginFromEnv:
+    def test_missing_credentials_skips_login(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("VEKN_USERNAME", raising=False)
+        monkeypatch.delenv("VEKN_PASSWORD", raising=False)
+        mock_client = MagicMock()
+
+        with patch("channel_ten.cli._common.login") as mock_login:
+            vekn_login_from_env(mock_client, delay=0)
+
+        mock_login.assert_not_called()
+
+    def test_credentials_present_calls_login(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("VEKN_USERNAME", "martin")
+        monkeypatch.setenv("VEKN_PASSWORD", "hunter2")
+        mock_client = MagicMock()
+
+        with patch("channel_ten.cli._common.login", return_value=True) as mock_login:
+            vekn_login_from_env(mock_client, delay=0)
+
+        mock_login.assert_called_once_with(mock_client, "martin", "hunter2", delay=0)
+
+    def test_login_failure_does_not_raise(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("VEKN_USERNAME", "martin")
+        monkeypatch.setenv("VEKN_PASSWORD", "wrong")
+        mock_client = MagicMock()
+
+        with patch("channel_ten.cli._common.login", return_value=False):
+            vekn_login_from_env(mock_client, delay=0)  # should not raise

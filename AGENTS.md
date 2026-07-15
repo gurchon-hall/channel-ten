@@ -76,6 +76,7 @@ A commit must pass all five before merging. There are no exceptions.
 | Variable | Used by | Source in CI |
 | - | - | - |
 | `GITHUB_TOKEN` | `publish`, `import` commands | GitHub Actions secret |
+| `VEKN_USERNAME` / `VEKN_PASSWORD` | `scrape`, `validate`, `tda-scrape` (player registry lookups) | GitHub Actions secrets |
 | `MIN_PLAYERS` | validator | env, defaults to `12` |
 | `KRCG_*` | krcg library internals | set by krcg at runtime |
 
@@ -136,6 +137,13 @@ No business logic inline.
 - **Grouping rule**: all non-ANY crypt card groups must form a set of at most 2 consecutive
   integers. The `_pick_best_crypt_version` helper in `validator.py` encodes this logic; do
   not reimplement it elsewhere.
+- **Player registry is login-gated**: unlike the forum and event calendar, anonymous requests
+  to `/player-registry/player/<id>` and `/event-calendar/players` get served a bare Joomla
+  login form instead of player data — `fetch_player`/`fetch_player_by_id` then silently return
+  `None` and callers fall back to the raw, unresolved name/id. `cli/_common.vekn_login_from_env`
+  calls `scraper.login()` with `$VEKN_USERNAME`/`$VEKN_PASSWORD` once per run before any lookups;
+  every CLI entry point that calls `fetch_player`/`fetch_player_by_id` (`scrape`, `validate`,
+  `tda-scrape`) must call it right after constructing its `httpx.Client`.
 - **`fetch_event_winner` return type**: this function returns `tuple[str, int | None] | None`,
   not a plain string. The tuple carries `(winner_name, vekn_id)` where `vekn_id` is parsed
   from the player's profile link in the standings table. Callers unpack the tuple; test mocks

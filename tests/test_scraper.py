@@ -19,6 +19,7 @@ from channel_ten.scraper import (
     get_soup,
     iter_thread_urls,
     kunena_div_to_text,
+    login,
     scrape_forum,
 )
 
@@ -1028,3 +1029,106 @@ class TestScrapeForum2:
                 results = list(scrape_forum(mock_client, delay=0))
 
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# login
+# ---------------------------------------------------------------------------
+
+LOGIN_FORM_HTML = """
+<html><body>
+<div class="login">
+  <form action="/component/users/?task=user.login&amp;Itemid=101" method="post">
+    <input type="text" name="username" id="username" value="" />
+    <input type="password" name="password" id="password" value="" />
+    <input type="hidden" name="return" value="" />
+    <input type="hidden" name="26d529638b4d324b41784ffb01c2bf50" value="1" />
+  </form>
+</div>
+</body></html>
+"""
+
+LOGIN_FORM_NO_TOKEN_HTML = """
+<html><body>
+<div class="login">
+  <form action="/component/users/?task=user.login&amp;Itemid=101" method="post">
+    <input type="text" name="username" id="username" value="" />
+    <input type="password" name="password" id="password" value="" />
+  </form>
+</div>
+</body></html>
+"""
+
+NO_LOGIN_FORM_HTML = "<html><body><p>Already logged in.</p></body></html>"
+
+LOGIN_SUCCESS_HTML = b"""
+<html><body>
+<div class="login-greeting">Hi Martin Cuchet,</div>
+</body></html>
+"""
+
+LOGIN_FAILURE_HTML = b"""
+<html><body>
+<div class="login">
+  <form action="/component/users/?task=user.login&amp;Itemid=101" method="post">
+    <input type="text" name="username" id="username" value="" />
+  </form>
+</div>
+</body></html>
+"""
+
+
+class TestLogin:
+    def test_success_returns_true(self):
+        soup = BeautifulSoup(LOGIN_FORM_HTML, "lxml")
+        mock_client = MagicMock()
+        mock_client.post.return_value = MagicMock(content=LOGIN_SUCCESS_HTML)
+
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = login(mock_client, "martin", "hunter2", delay=0)
+
+        assert result is True
+
+    def test_posts_csrf_token_and_credentials(self):
+        soup = BeautifulSoup(LOGIN_FORM_HTML, "lxml")
+        mock_client = MagicMock()
+        mock_client.post.return_value = MagicMock(content=LOGIN_SUCCESS_HTML)
+
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            login(mock_client, "martin", "hunter2", delay=0)
+
+        args, kwargs = mock_client.post.call_args
+        assert args[0].endswith("/component/users/?task=user.login&Itemid=101")
+        assert kwargs["data"]["username"] == "martin"
+        assert kwargs["data"]["password"] == "hunter2"
+        assert kwargs["data"]["26d529638b4d324b41784ffb01c2bf50"] == "1"
+
+    def test_wrong_credentials_returns_false(self):
+        soup = BeautifulSoup(LOGIN_FORM_HTML, "lxml")
+        mock_client = MagicMock()
+        mock_client.post.return_value = MagicMock(content=LOGIN_FAILURE_HTML)
+
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = login(mock_client, "martin", "wrong", delay=0)
+
+        assert result is False
+
+    def test_no_login_form_returns_false(self):
+        soup = BeautifulSoup(NO_LOGIN_FORM_HTML, "lxml")
+        mock_client = MagicMock()
+
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = login(mock_client, "martin", "hunter2", delay=0)
+
+        assert result is False
+        mock_client.post.assert_not_called()
+
+    def test_no_csrf_token_returns_false(self):
+        soup = BeautifulSoup(LOGIN_FORM_NO_TOKEN_HTML, "lxml")
+        mock_client = MagicMock()
+
+        with patch("channel_ten.scraper._vekn.get_soup", return_value=soup):
+            result = login(mock_client, "martin", "hunter2", delay=0)
+
+        assert result is False
+        mock_client.post.assert_not_called()

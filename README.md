@@ -65,6 +65,12 @@ Requires Python ≥ 3.14.
 Every subcommand accepts `--verbose` / `-v` for debug logging and `--twds-dir`
 pointing at the root of a TWD data checkout (default: `twds/`).
 
+`scrape`, `validate`, and `tda-scrape` all resolve player names/VEKN numbers via
+the VEKN player registry, which requires a logged-in session. Set
+`$VEKN_USERNAME` and `$VEKN_PASSWORD` (a regular vekn.net account) before running
+any of them — without both set, every registry lookup fails and falls back to
+the raw, unresolved name or id.
+
 #### Command `scrape`: fetch new TWDs from the VEKN forum
 
 | Argument | Description | Mandatory | Default |

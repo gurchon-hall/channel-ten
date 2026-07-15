@@ -56,6 +56,18 @@ Changed
 Fixed
 -----
 
+- Player registry lookups (``scraper.fetch_player``, ``scraper.fetch_player_by_id``)
+  silently failed for every player, every run — ``/player-registry/player/<id>`` and
+  ``/event-calendar/players`` serve a bare Joomla login form to anonymous requests
+  instead of player data, and the scraper never authenticated. This made
+  ``pipeline_tda.resolve_author`` and ``pipeline._lookup_player`` fall back to the raw,
+  unresolved id/name for *every* deck (confirmed in production: known, currently active
+  VEKN members logged ``"not found in player registry"``). Added ``scraper.login`` (logs
+  into vekn.net via its ``com_users`` form, scraping the per-session CSRF token first)
+  and ``cli._common.vekn_login_from_env``, called by ``scrape``, ``validate``, and
+  ``tda-scrape`` right after constructing their ``httpx.Client``, using new
+  ``VEKN_USERNAME``/``VEKN_PASSWORD`` environment variables (see ``.env.example`` and
+  the corresponding GitHub Actions secrets).
 - ``scraper/_vekn.py`` (``fetch_event_name``): the calendar name-lookup only tried
   JSON-LD structured data and ``<h1>``, but VEKN's event-calendar pages (Joomla/JEvents)
   actually render the title in ``<div class="componentheading">`` — neither JSON-LD nor

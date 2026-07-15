@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction
+from channel_ten.cli._common import SubParsersAction, vekn_login_from_env
 from channel_ten.models import TdaDeck
 from channel_ten.parser import parse_tda_deck_text
 from channel_ten.pipeline import RouteCounters
@@ -101,6 +101,8 @@ def run(args: argparse.Namespace) -> int:
     counters = RouteCounters()
 
     with httpx.Client(headers=HEADERS, timeout=60.0) as client:
+        vekn_login_from_env(client, args.delay)
+
         try:
             archive_ids = list_tda_archive_ids(client, token, delay=args.delay)
         except RuntimeError as exc:

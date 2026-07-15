@@ -53,6 +53,7 @@ from channel_ten.scraper._vekn import (
     fetch_event_winner,
     fetch_player,
     fetch_player_by_id,
+    login,
 )
 
 __all__ = [
@@ -82,6 +83,7 @@ __all__ = [
     "fetch_event_winner",
     "fetch_player",
     "fetch_player_by_id",
+    "login",
     # GiottoVerducci/TWD archive
     "fetch_twda_txt",
     "is_twda_import",

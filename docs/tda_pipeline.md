@@ -46,8 +46,11 @@ archive for a walk-in player). `pipeline_tda.resolve_author` treats a numeric va
 a VEKN number and resolves the canonical player name from it via
 `scraper.fetch_player_by_id` (`https://www.vekn.net/player-registry/player/<id>`,
 confirmed against a live page — see below); a non-numeric value is resolved via the
-by-name lookup (`scraper.fetch_player`) TWD uses for winners. Either way, if the lookup
-fails the raw string is kept as the name and the deck is still written (never dropped) —
+by-name lookup (`scraper.fetch_player`) TWD uses for winners. Both registry lookups
+require an authenticated session — call `cli._common.vekn_login_from_env` before
+processing any archive, or every lookup fails silently regardless of whether the id is
+real. Either way, if the lookup fails the raw string is kept as the name and the deck is
+still written (never dropped) —
 under a slugified filename (`models.TdaDeck.yaml_filename`) when no VEKN number was
 resolvable at all. `process_tda_deck` syncs `deck.created_by` to the resolved name
 (the parser only ever sets it to the raw `Author:` line, e.g. `"1003838"`, which isn't

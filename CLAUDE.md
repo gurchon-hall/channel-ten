@@ -207,3 +207,12 @@ After every non-trivial change, update documentation:
   VEKN registration in recurring online events. This is a source data-quality limitation,
   not a bug in `pipeline_tda.resolve_author` — the user-specified rule (numeric → use
   directly, non-numeric → resolve via the player registry) is implemented as given.
+- Do not add a new CLI entry point that calls `scraper.fetch_player` or
+  `scraper.fetch_player_by_id` without first calling
+  `cli._common.vekn_login_from_env(client, delay)` right after constructing the
+  `httpx.Client`. The player registry (`/player-registry/player/<id>`,
+  `/event-calendar/players`) is login-gated — anonymous requests get a bare Joomla
+  login form instead of player data, so every lookup silently returns `None` and the
+  caller falls back to the raw, unresolved name/id. `scrape`, `validate`, and
+  `tda-scrape` all call it; `VEKN_USERNAME`/`VEKN_PASSWORD` are read from the
+  environment (see `AGENTS.md`'s environment variables table).

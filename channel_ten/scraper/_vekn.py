@@ -1,17 +1,21 @@
 """VEKN event calendar and player registry lookups."""
 
+import base64
 import json
 import logging
 import re
+import time
 import unicodedata
 from datetime import date
 from typing import cast
 from urllib.parse import quote
 
 import httpx
+from bs4 import BeautifulSoup
 
 from channel_ten.scraper._http import (
     DEFAULT_DELAY_SECONDS,
+    FORUM_BASE,
     VEKN_PLAYER_REGISTRY_URL,
     VEKN_PLAYERS_URL,
     get_soup,
@@ -20,6 +24,11 @@ from channel_ten.scraper._http import (
 # The registry page's componentheading is "<Name> (#<vekn_id>)" — the id suffix is
 # redundant once we already have the id, and must be stripped to get a bare name.
 _REGISTRY_ID_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
+
+# Joomla's anti-CSRF token is rendered as a hidden <input> whose *name* (not value)
+# is a random 32-char hex string, regenerated every page load — it must be scraped
+# off the login form each time rather than hardcoded.
+_CSRF_TOKEN_FIELD_RE = re.compile(r"^[0-9a-f]{32}$")
 
 logger = logging.getLogger(__name__)
 JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -330,3 +339,76 @@ def fetch_player_by_id(
 
     logger.debug("Player registry lookup: %s → %r", url, name)
     return name
+
+
+def login(
+    client: httpx.Client,
+    username: str,
+    password: str,
+    delay: float = DEFAULT_DELAY_SECONDS,
+) -> bool:
+    """Log into vekn.net so *client*'s session can see player-registry pages.
+
+    Anonymous requests to ``/player-registry/player/<id>`` and
+    ``/event-calendar/players`` are served a bare Joomla login form instead of
+    player data — the player registry is login-gated, unlike the forum and event
+    calendar. This submits *username*/*password* to the site's ``com_users``
+    login form, first scraping the form's per-session CSRF token field (Joomla
+    regenerates it on every page load, so it can't be hardcoded). On success,
+    *client*'s cookie jar carries an authenticated session for subsequent
+    requests — call this once per run, before any :func:`fetch_player` or
+    :func:`fetch_player_by_id` calls.
+
+    Returns ``True`` on success, ``False`` on bad credentials or an unrecognised
+    login form (site markup changed) — callers should treat ``False`` as
+    "registry lookups will keep failing", not a fatal error.
+    """
+    soup = get_soup(client, f"{FORUM_BASE}/player-registry", delay)
+
+    username_field = soup.find("input", id="username")
+    if username_field is None:
+        logger.warning("VEKN login form not found at %s/player-registry", FORUM_BASE)
+        return False
+    form = username_field.find_parent("form")
+    if form is None:
+        logger.warning("VEKN login form not found at %s/player-registry", FORUM_BASE)
+        return False
+
+    token_name = next(
+        (
+            name
+            for inp in form.find_all("input", attrs={"type": "hidden"})
+            if isinstance(name := inp.get("name"), str) and _CSRF_TOKEN_FIELD_RE.match(name)
+        ),
+        None,
+    )
+    if token_name is None:
+        logger.warning("VEKN login form has no recognisable CSRF token field")
+        return False
+
+    action = cast(str, form.get("action") or "/component/users/?task=user.login&Itemid=101")
+    url = action if action.startswith("http") else f"{FORUM_BASE}{action}"
+    return_url = base64.b64encode(f"{FORUM_BASE}/player-registry".encode()).decode()
+
+    logger.debug("POST %s (VEKN login)", url)
+    response = client.post(
+        url,
+        data={
+            "username": username,
+            "password": password,
+            "return": return_url,
+            token_name: "1",
+        },
+        headers={"Referer": f"{FORUM_BASE}/player-registry"},
+        follow_redirects=True,
+    )
+    response.raise_for_status()
+    time.sleep(delay)
+
+    result_soup = BeautifulSoup(response.content, "lxml")
+    if result_soup.find(class_="login-greeting") is not None:
+        logger.debug("VEKN login succeeded for %r", username)
+        return True
+
+    logger.warning("VEKN login failed for %r — check VEKN_USERNAME/VEKN_PASSWORD", username)
+    return False

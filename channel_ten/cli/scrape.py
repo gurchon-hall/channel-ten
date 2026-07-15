@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction
+from channel_ten.cli._common import SubParsersAction, vekn_login_from_env
 from channel_ten.output.yaml import find_existing_yaml
 from channel_ten.pipeline import RouteCounters, process_tournament, route_tournament
 from channel_ten.scraper import (
@@ -94,6 +94,8 @@ def run(args: argparse.Namespace) -> int:
     counters = RouteCounters()
 
     with httpx.Client(headers=HEADERS, timeout=60.0) as client:
+        vekn_login_from_env(client, args.delay)
+
         # Steps 1-2: scrape forum data and parse it into Tournament objects
         for tournament, icon in scrape_forum(
             client,

@@ -35,7 +35,7 @@ import httpx
 from ruamel.yaml import YAML
 
 from channel_ten._logger import setup_logging
-from channel_ten.cli._common import SubParsersAction
+from channel_ten.cli._common import SubParsersAction, vekn_login_from_env
 from channel_ten.models import Deck
 from channel_ten.output.yaml import reorder_tournament_dict
 from channel_ten.scraper._forum import extract_twd_from_thread
@@ -265,6 +265,8 @@ def run(args: argparse.Namespace) -> int:
     )
 
     with httpx.Client(headers=HEADERS, follow_redirects=True, timeout=60.0) as client:
+        vekn_login_from_env(client, DEFAULT_DELAY_SECONDS)
+
         for path in yaml_iter:
             with open(path, encoding="utf-8") as fh:
                 raw = yaml.load(fh)  # pyright: ignore[reportUnknownMemberType]
