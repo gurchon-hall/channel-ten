@@ -15,9 +15,15 @@ never fetches from ``vekn.net`` — event metadata (name, date, location,
 rounds, players, winner) comes entirely from ``archon.xlsx``, which is the
 same report organizers already submit to VEKN.
 
-GitHub access mirrors :mod:`channel_ten.scraper._twda`:
-  - Listing uses the git trees API (one request); pass a token to raise the
-    60/hour unauthenticated rate limit.
+GitHub access differs from :mod:`channel_ten.scraper._twda` in one respect:
+  - Listing uses the contents API scoped to the tournaments folder, not the
+    recursive git trees API :mod:`channel_ten.scraper._twda` uses — unlike
+    GiottoVerducci/TWD (a repo dedicated to deck files), smeea/vdb is a full web
+    app whose recursive tree is ~15 MB of mostly unrelated frontend assets, and
+    GitHub intermittently 500s trying to serve it. The folder-scoped contents API
+    returns only the tournaments folder's own entries (a few KB) and has been
+    reliable in comparison. Pass a token to raise the 60/hour unauthenticated
+    rate limit either way.
   - Per-archive fetches use raw.githubusercontent.com, not subject to that limit.
 """
 
@@ -72,16 +78,19 @@ def list_tda_archive_ids(
 ) -> list[str]:
     """Return the sorted archive ids of every ``tournaments/<id>.zip`` file in VDB.
 
-    Uses the recursive git trees API in a single request.
+    Uses the contents API scoped to ``VDB_TOURNAMENTS_FOLDER`` (one request) rather
+    than the recursive git trees API — see the module docstring for why. This is
+    limited to 1,000 entries per GitHub's contents API; smeea/vdb has a few dozen
+    archives as of this writing, far below that.
 
     Raises:
         RuntimeError: when the request is rejected because the API rate limit has
             been exhausted (advises setting a token).
         httpx.HTTPStatusError: for other unexpected HTTP errors.
     """
-    url = f"{_GITHUB_API}/repos/{VDB_OWNER}/{VDB_REPO}/git/trees/{VDB_BRANCH}"
-    logger.debug("GET %s (recursive)", url)
-    resp = client.get(url, headers=_tda_headers(token), params={"recursive": "1"})
+    url = f"{_GITHUB_API}/repos/{VDB_OWNER}/{VDB_REPO}/contents/{VDB_TOURNAMENTS_FOLDER}"
+    logger.debug("GET %s", url)
+    resp = client.get(url, headers=_tda_headers(token), params={"ref": VDB_BRANCH})
 
     if resp.status_code == 401:
         raise RuntimeError(
@@ -99,12 +108,9 @@ def list_tda_archive_ids(
     time.sleep(delay)
 
     data = resp.json()
-    if data.get("truncated"):
-        logger.warning("smeea/vdb git tree was truncated by the API; some archives may be missing.")
-
     archive_ids: list[str] = []
-    for entry in data.get("tree", []):
-        if entry.get("type") != "blob":
+    for entry in data:
+        if entry.get("type") != "file":
             continue
         match = _ARCHIVE_PATH_RE.match(entry.get("path", ""))
         if match:
@@ -136,6 +142,27 @@ def fetch_tda_archive(
 
 
 @dataclass
+class TdaStandingRow:
+    """One participant's row from archon.xlsx's ``Standings`` sheet.
+
+    ``vekn_number`` is joined in from ``Methuselahs`` via ``seat`` (Standings' own
+    ``#`` column) — Standings does not carry a VEKN number itself. ``gw`` is
+    "Prelim GWs" (no separate final-round GW is tracked). ``vp`` is "Prelim VPs" +
+    "Final VPs" (0 when a player did not reach the final) — matches the total each
+    deck's own ``Description:`` line encodes, e.g. ``2GW8.5+3``.
+    """
+
+    final_rank: int
+    target_rank: int
+    seat: int
+    name: str
+    gw: int
+    vp: float
+    tp: int
+    vekn_number: int | None
+
+
+@dataclass
 class TdaEventMeta:
     """Event-level metadata extracted from one archive's ``archon.xlsx``."""
 
@@ -146,6 +173,7 @@ class TdaEventMeta:
     players_count: int
     winner: str
     winner_vekn_number: int | None
+    standings: list[TdaStandingRow]
 
 
 def _row_label_map(rows: Sequence[tuple[object, ...]]) -> dict[str, tuple[object, ...]]:
@@ -174,9 +202,10 @@ def parse_archon_xlsx(data: bytes) -> TdaEventMeta:
 
     Reads three sheets:
       - ``Tournament Info``: name, date, city, rounds, players count.
-      - ``Standings``: the Final Rank 1 row gives the winner's name and seat number.
-      - ``Methuselahs``: maps each seat number to its VEKN member number, used to
-        resolve the winner's ``winner_vekn_number``.
+      - ``Standings``: every participant's final rank, GW/VP/TP; the Final Rank 1
+        row gives the winner.
+      - ``Methuselahs``: maps each seat number to its VEKN member number, joined
+        into each Standings row (and used to resolve ``winner_vekn_number``).
     """
     wb = load_workbook(BytesIO(data), data_only=True)
 
@@ -196,10 +225,12 @@ def parse_archon_xlsx(data: bytes) -> TdaEventMeta:
     players_count = _cell_int(info["Number of Players:"][1])
 
     seat_to_vekn = _seat_to_vekn_map(list(wb[_METHUSELAHS_SHEET].iter_rows(values_only=True)))
-    winner, winner_seat = _winner_from_standings(
-        list(wb[_STANDINGS_SHEET].iter_rows(values_only=True))
+    standings = _parse_standings(
+        list(wb[_STANDINGS_SHEET].iter_rows(values_only=True)), seat_to_vekn
     )
-    winner_vekn_number = seat_to_vekn.get(winner_seat) if winner_seat is not None else None
+    winner_row = next((row for row in standings if row.final_rank == 1), None)
+    if winner_row is None:
+        raise ValueError("Standings sheet has no Final Rank 1 row")
 
     return TdaEventMeta(
         name=name,
@@ -207,8 +238,9 @@ def parse_archon_xlsx(data: bytes) -> TdaEventMeta:
         date_start=date_start,
         rounds_format=rounds_format,
         players_count=players_count,
-        winner=winner,
-        winner_vekn_number=winner_vekn_number,
+        winner=winner_row.name,
+        winner_vekn_number=winner_row.vekn_number,
+        standings=standings,
     )
 
 
@@ -235,8 +267,23 @@ def _seat_to_vekn_map(rows: Sequence[tuple[object, ...]]) -> dict[int, int]:
     return seat_map
 
 
-def _winner_from_standings(rows: Sequence[tuple[object, ...]]) -> tuple[str, int | None]:
-    """Return (winner name, seat number) from the Final Rank == 1 row in Standings."""
+def _cell_float(value: object) -> float:
+    """Convert an archon.xlsx numeric cell (read back as int or float) to float."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    raise ValueError(f"Expected a numeric cell, got {value!r}")
+
+
+def _parse_standings(
+    rows: Sequence[tuple[object, ...]], seat_to_vekn: dict[int, int]
+) -> list[TdaStandingRow]:
+    """Parse every participant's row from the Standings sheet, joined with *seat_to_vekn*.
+
+    Column layout: Final Rank, Target Rank, # (seat), Name, Prelim GWs, Prelim VPs,
+    Final VPs, TPs. ``vp`` sums Prelim VPs and Final VPs — 0 when a player did not
+    reach the final (that cell is blank) — matching the total each deck's own
+    ``Description:`` line encodes, e.g. ``2GW8.5+3``.
+    """
     header_idx = next(
         (i for i, row in enumerate(rows) if row and row[0] == "Final Rank"),
         None,
@@ -244,12 +291,49 @@ def _winner_from_standings(rows: Sequence[tuple[object, ...]]) -> tuple[str, int
     if header_idx is None:
         raise ValueError("Standings sheet has no 'Final Rank' header row")
 
+    standings: list[TdaStandingRow] = []
     for row in rows[header_idx + 1 :]:
-        if row and row[0] == 1 and len(row) > 3:
-            seat = row[2] if len(row) > 2 and isinstance(row[2], int) else None
-            return str(row[3]).strip(), seat
+        if not row or not isinstance(row[0], int) or len(row) <= 7:
+            continue
+        seat = _cell_int(row[2])
+        final_vp = _cell_float(row[6]) if row[6] is not None else 0.0
+        standings.append(
+            TdaStandingRow(
+                final_rank=row[0],
+                target_rank=_cell_int(row[1]),
+                seat=seat,
+                name=str(row[3]).strip(),
+                gw=_cell_int(row[4]),
+                vp=_cell_float(row[5]) + final_vp,
+                tp=_cell_int(row[7]),
+                vekn_number=seat_to_vekn.get(seat),
+            )
+        )
+    return standings
 
-    raise ValueError("Standings sheet has no Final Rank 1 row")
+
+_DECK_FILENAME_RANK_RE = re.compile(r"_(\d+)\.txt$", re.IGNORECASE)
+
+
+def target_rank_from_deck_filename(filename: str) -> int | None:
+    """Extract the Standings ``Target Rank`` a deck ``.txt`` filename encodes.
+
+    Deck filenames follow ``<slug>_<N>.txt``. ``N`` was confirmed (against a live
+    archive) to be the Standings sheet's ``Target Rank`` column — not the seat
+    number and not ``Final Rank`` (which ties every non-winning finalist at the same
+    value, so it cannot identify one specific deck). Returns ``None`` if the filename
+    doesn't match the expected pattern (e.g. an online-event archive using different
+    naming).
+    """
+    match = _DECK_FILENAME_RANK_RE.search(filename)
+    return int(match.group(1)) if match else None
+
+
+def standing_for_target_rank(
+    standings: Sequence[TdaStandingRow], target_rank: int
+) -> TdaStandingRow | None:
+    """Return the Standings row matching *target_rank*, or ``None`` if none does."""
+    return next((row for row in standings if row.target_rank == target_rank), None)
 
 
 def read_archon_xlsx(zip_bytes: bytes) -> bytes:

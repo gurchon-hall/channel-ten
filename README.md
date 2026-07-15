@@ -40,7 +40,10 @@ Because one tournament yields many decks, TDA files are stored one directory lev
 `eternal-vigilance/tda/YYYY/MM/<event_id>/<author_id>.yaml`, where `event_id` is the archive's zip
 filename stem (numeric for events with a VEKN calendar id, e.g. `10367`; a short slug like `online1`
 for recurring online events that never got one) and `author_id` is the deck author's VEKN member
-number when resolvable, or a slug of the raw author string otherwise. See
+number when resolvable, or a slug of the raw author string otherwise. Each deck's `deck.player`
+carries that participant's name, VEKN number, and this event's placement (rank, GW, VP, TP), sourced
+from `archon.xlsx`'s `Standings` sheet. The archive's raw `archon.xlsx` is also saved alongside its
+decks, at `eternal-vigilance/tda/YYYY/MM/<event_id>/archon.xlsx`. See
 [`docs/tda_pipeline.md`](docs/tda_pipeline.md) for the full archive/spreadsheet layout this
 depends on.
 

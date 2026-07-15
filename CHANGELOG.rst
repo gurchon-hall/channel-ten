@@ -35,12 +35,28 @@ Added
   VEKN member number via ``https://www.vekn.net/player-registry/player/<id>``
   (same ``componentheading`` convention as ``fetch_event_name``). Used by
   ``pipeline_tda.resolve_author`` so a numeric TDA ``Author:`` value (the
-  common case) produces a human-readable ``deck.created_by``/``author``
+  common case) produces a human-readable ``deck.player.name``
   instead of the bare VEKN number.
+- TDA decks now carry every participant's placement data from ``archon.xlsx``'s
+  ``Standings`` sheet — rank, GW, VP and TP — not just the winner's. Each deck
+  ``.txt`` file is joined to its Standings row via the deck filename's trailing
+  number, confirmed to be the ``Target Rank`` column (not the seat number or
+  ``Final Rank``, which ties every non-winning finalist). New
+  ``scraper.TdaStandingRow``, ``scraper.target_rank_from_deck_filename``,
+  ``scraper.standing_for_target_rank``. See ``docs/tda_pipeline.md``.
+- ``tda-scrape`` now also saves the archive's raw ``archon.xlsx`` to
+  ``eternal-vigilance/tda/YYYY/MM/<event_id>/archon.xlsx``, for traceability
+  against smeea/vdb. New ``output.tda_yaml.write_archon_xlsx``.
 
 Changed
 -------
 
+- **Breaking TDA schema change**: ``TdaDeck``'s top-level ``author`` and
+  ``author_vekn_number`` fields are gone. A deck's participant identity and
+  placement now live under ``deck.player`` (new ``models.TdaPlayer``: ``name``,
+  ``vekn_number``, ``rank``, ``gw``, ``vp``, ``tp``) instead — see
+  ``docs/tda_pipeline.md``. ``deck.created_by`` is no longer set for TDA decks
+  (superseded by ``deck.player``).
 - ``channel-ten parse``: ``--twds-dir`` now defaults to ``twds/``, matching
   every other subcommand — previously it defaulted to ``None`` and printed to
   stdout. Pass the new ``--stdout`` flag to get the old print-to-stdout
@@ -56,6 +72,20 @@ Changed
 Fixed
 -----
 
+- ``scraper._tda.list_tda_archive_ids``: ``tda-scrape`` was intermittently failing
+  with ``500 Internal Server Error`` from GitHub's recursive git trees API. That
+  endpoint returns the *entire* smeea/vdb repo tree (~15 MB, confirmed live —
+  mostly unrelated frontend assets), which GitHub's backend fails to serve
+  reliably. Switched to the contents API scoped to
+  ``frontend/public/tournaments`` (a few KB, confirmed live), which only needs
+  one request since the folder is flat.
+- ``pipeline_tda.resolve_author``: when the VEKN player-registry lookup failed,
+  ``deck.player.name`` fell back to the bare raw ``Author:`` value (e.g. a VEKN
+  number string like ``"3070036"``) instead of an actual name. ``resolve_author``
+  now takes an ``archon_name`` argument — the participant's own ``Name`` from their
+  archon.xlsx Standings row, which ``cli/tda_scrape.py`` already has on hand from
+  the Target Rank join — and falls back to that instead, since it needs no extra
+  network call and is an actual name rather than a bare id.
 - ``scraper/_vekn.py`` (``fetch_event_name``): the calendar name-lookup only tried
   JSON-LD structured data and ``<h1>``, but VEKN's event-calendar pages (Joomla/JEvents)
   actually render the title in ``<div class="componentheading">`` — neither JSON-LD nor

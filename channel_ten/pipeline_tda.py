@@ -27,16 +27,23 @@ from channel_ten.validator import (
 logger = logging.getLogger(__name__)
 
 
-def resolve_author(client: httpx.Client, raw_author: str, delay: float) -> tuple[str, int | None]:
+def resolve_author(
+    client: httpx.Client,
+    raw_author: str,
+    delay: float,
+    archon_name: str | None = None,
+) -> tuple[str, int | None]:
     """Resolve a deck's raw ``Author:`` field to a display name and VEKN number.
 
     Numeric values are VEKN member numbers already; the canonical name is fetched
     from the player registry by id (:func:`channel_ten.scraper.fetch_player_by_id`).
     Non-numeric values (a player name) are resolved via the same by-name lookup used
     for TWD winners (:func:`channel_ten.scraper.fetch_player`). Either way, if the
-    lookup fails the raw value is kept as the name and a warning logged — the deck is
-    still written (never dropped), under a slugified filename when no VEKN number was
-    resolvable.
+    lookup fails, *archon_name* — the participant's name from archon.xlsx's
+    Standings sheet, already on hand and not a second network call — is used instead
+    of the raw value when given, since a bare VEKN number is not a name. A warning is
+    logged either way; the deck is still written (never dropped), under a slugified
+    filename when no VEKN number was resolvable.
 
     Caveat: a numeric id is not proof of a *real* VEKN registration — Archon assigns
     small placeholder numbers for online-event participants without one (see
@@ -50,21 +57,21 @@ def resolve_author(client: httpx.Client, raw_author: str, delay: float) -> tuple
             name = fetch_player_by_id(client, vekn_number, delay=delay)
         except Exception as exc:
             logger.warning("Player registry lookup failed for id %s: %s", vekn_number, exc)
-            return raw_author, vekn_number
+            return archon_name or raw_author, vekn_number
         if name is None:
             logger.warning("VEKN id %s not found in player registry", vekn_number)
-            return raw_author, vekn_number
+            return archon_name or raw_author, vekn_number
         return name, vekn_number
 
     try:
         result = fetch_player(client, raw_author, delay=delay)
     except Exception as exc:
         logger.warning("Player lookup failed for %r: %s", raw_author, exc)
-        return raw_author, None
+        return archon_name or raw_author, None
 
     if result is None:
         logger.warning("TDA author not found in VEKN registry: %r", raw_author)
-        return raw_author, None
+        return archon_name or raw_author, None
 
     canonical_name, vekn_number = result
     return canonical_name, vekn_number
@@ -73,11 +80,12 @@ def resolve_author(client: httpx.Client, raw_author: str, delay: float) -> tuple
 def process_tda_deck(entry: TdaDeck) -> tuple[TdaDeck, list[str]]:
     """Enrich *entry*'s deck via krcg and return it with its validation errors.
 
-    Also syncs ``deck.created_by`` to *entry*'s already-resolved ``author`` name
-    (:func:`resolve_author`) — the parser only ever sets it to the deck's raw
-    ``Author:`` line, which for a numeric author is not human-readable.
+    Also clears ``deck.created_by`` — the parser only ever sets it to the deck's
+    raw ``Author:`` line (e.g. ``"1003838"``), which is superseded by the resolved,
+    richer identity already at ``deck.player`` (:func:`resolve_author` plus the
+    Standings join in ``cli/tda_scrape.py``).
     """
-    entry.deck.created_by = entry.author
+    entry.deck.created_by = None
     crypt_fixes = enrich_crypt_cards(entry.deck)
     section_fixes = fix_card_sections(entry.deck)
     id_fixes = enrich_card_ids(entry.deck)
@@ -113,20 +121,20 @@ def route_tda_deck(
             logger.warning("%s  %s  (errors: %s)", path.name, entry.name, ", ".join(errors))
             counters.written += 1
         except Exception as exc:
-            logger.error("%s/%s: %s", entry.event_id, entry.author, exc)
+            logger.error("%s/%s: %s", entry.event_id, entry.yaml_filename, exc)
             logger.debug("Stack trace:", exc_info=True)
             counters.failed += 1
         return
 
     try:
         path = write_tda_deck_yaml(entry, output_dir, overwrite=overwrite)
-        logger.info("%s  %s (%s)", path, entry.name, entry.author)
+        logger.info("%s  %s (%s)", path, entry.name, entry.yaml_filename)
         counters.written += 1
     except FileExistsError as exc:
         logger.debug("%s", exc)
         counters.skipped += 1
         counters.overwrite_skipped += 1
     except Exception as exc:
-        logger.error("%s/%s: %s", entry.event_id, entry.author, exc)
+        logger.error("%s/%s: %s", entry.event_id, entry.yaml_filename, exc)
         logger.debug("Stack trace:", exc_info=True)
         counters.failed += 1

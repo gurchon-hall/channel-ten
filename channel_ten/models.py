@@ -49,7 +49,30 @@ class LibrarySection(BaseModel):
     cards: list[LibraryCard] = []
 
 
+class TdaPlayer(BaseModel):
+    """A TDA deck's participant identity plus their placement in that event.
+
+    ``name``/``vekn_number`` are resolved from the deck's raw ``Author:`` line
+    (:func:`channel_ten.pipeline_tda.resolve_author`). ``rank``/``gw``/``vp``/``tp``
+    come from a join against archon.xlsx's ``Standings`` sheet, keyed by the deck
+    filename's trailing number — confirmed (against a live smeea/vdb archive) to be
+    the ``Target Rank`` column, not the seat number or ``Final Rank`` (which is not
+    unique: VTES only ranks the final's winner outright, tying every other finalist
+    at the next rank). ``vp`` is Prelim VPs + Final VPs (0 when a player didn't reach
+    the final) — the same total the archive's own deck ``Description:`` lines encode,
+    e.g. ``2GW8.5+3``. These four fields are ``None`` when no matching row was found.
+    """
+
+    name: str
+    vekn_number: int | None = None
+    rank: int | None = None
+    gw: int | None = None
+    vp: float | None = None
+    tp: int | None = None
+
+
 class Deck(BaseModel):
+    player: TdaPlayer | None = None  # TDA only — set by pipeline_tda
     name: str | None = None
     created_by: str | None = None  # only when different from winner
     description: str = ""
@@ -193,12 +216,12 @@ class TdaDeck(BaseModel):
       5. rounds_format — e.g. "3R+F", derived from archon.xlsx's round count
       6. players_count
       7. winner
-      8. author        — raw "Author:" line from the deck text (VEKN number or name)
-      9. deck
+      8. deck          — deck.player carries this deck's participant identity
+                         (name, vekn_number) and placement (rank, gw, vp, tp)
 
     Optional:
       - winner_vekn_number, event_url (only when event_id is numeric),
-        archive_url (source .zip, for traceability), author_vekn_number
+        archive_url (source .zip, for traceability)
     """
 
     # --- Mandatory ---
@@ -210,14 +233,12 @@ class TdaDeck(BaseModel):
     rounds_format: str
     players_count: int
     winner: str
-    author: str
     deck: Deck
 
     # --- Optional ---
     winner_vekn_number: int | None = None
     event_url: str | None = None
     archive_url: str | None = None
-    author_vekn_number: int | None = None
 
     @field_validator("rounds_format")
     @classmethod
@@ -231,10 +252,18 @@ class TdaDeck(BaseModel):
     def parse_date(cls, v: str | date | None) -> date | None:
         return Tournament.parse_date(v)
 
+    @model_validator(mode="after")
+    def require_player(self) -> TdaDeck:
+        if self.deck.player is None:
+            raise ValueError("TdaDeck.deck.player is required")
+        return self
+
     @property
     def yaml_filename(self) -> str:
-        """{author_vekn_number}.yaml when resolved, else a slug of the raw author string."""
-        if self.author_vekn_number is not None:
-            return f"{self.author_vekn_number}.yaml"
-        slug = _SLUG_RE.sub("_", self.author.strip().lower()).strip("_")
+        """{vekn_number}.yaml when resolved, else a slug of the raw player name."""
+        player = self.deck.player
+        assert player is not None  # enforced by require_player
+        if player.vekn_number is not None:
+            return f"{player.vekn_number}.yaml"
+        slug = _SLUG_RE.sub("_", player.name.strip().lower()).strip("_")
         return f"{slug or 'unknown'}.yaml"

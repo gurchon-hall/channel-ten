@@ -1,4 +1,5 @@
 import io
+from datetime import date
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -29,10 +30,37 @@ def tda_deck_to_yaml_str(entry: TdaDeck) -> str:
     return buf.getvalue()
 
 
+def _event_dir(output_dir: Path, date_start: date, event_id: str) -> Path:
+    return output_dir / f"{date_start.year:04d}" / f"{date_start.month:02d}" / event_id
+
+
 def tda_event_dir(output_dir: Path, entry: TdaDeck) -> Path:
     """Return output_dir/YYYY/MM/<event_id>, the folder holding every deck of one event."""
-    d = entry.date_start
-    return output_dir / f"{d.year:04d}" / f"{d.month:02d}" / entry.event_id
+    return _event_dir(output_dir, entry.date_start, entry.event_id)
+
+
+def write_archon_xlsx(
+    xlsx_bytes: bytes,
+    output_dir: Path,
+    date_start: date,
+    event_id: str,
+    overwrite: bool = False,
+) -> Path:
+    """Write the archive's raw archon.xlsx alongside its per-participant deck YAML
+    files, at output_dir/YYYY/MM/<event_id>/archon.xlsx, for traceability against
+    smeea/vdb (the source could change or disappear).
+
+    Same identical-content-skip semantics as :func:`write_tda_deck_yaml`.
+    """
+    dest_dir = _event_dir(output_dir, date_start, event_id)
+    path = dest_dir / "archon.xlsx"
+
+    if path.exists() and not overwrite and path.read_bytes() == xlsx_bytes:
+        return path
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(xlsx_bytes)
+    return path
 
 
 def write_tda_deck_yaml(

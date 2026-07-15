@@ -34,11 +34,14 @@ from channel_ten.scraper._icons import (
 from channel_ten.scraper._tda import (
     VDB_RAW_BASE,
     TdaEventMeta,
+    TdaStandingRow,
     fetch_tda_archive,
     iter_tda_deck_texts,
     list_tda_archive_ids,
     parse_archon_xlsx,
     read_archon_xlsx,
+    standing_for_target_rank,
+    target_rank_from_deck_filename,
 )
 from channel_ten.scraper._twda import (
     TWDA_DECKS_FOLDER,
@@ -88,9 +91,12 @@ __all__ = [
     "list_twda_event_ids",
     # smeea/vdb TDA archive
     "TdaEventMeta",
+    "TdaStandingRow",
     "fetch_tda_archive",
     "iter_tda_deck_texts",
     "list_tda_archive_ids",
     "parse_archon_xlsx",
     "read_archon_xlsx",
+    "standing_for_target_rank",
+    "target_rank_from_deck_filename",
 ]

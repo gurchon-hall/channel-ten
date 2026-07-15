@@ -12,6 +12,7 @@ from channel_ten.models import (
     LibraryCard,
     LibrarySection,
     TdaDeck,
+    TdaPlayer,
     Tournament,
 )
 
@@ -153,6 +154,26 @@ def make_tournament(**kwargs: Any) -> Tournament:
 
 
 def make_tda_deck(**kwargs: Any) -> TdaDeck:
+    """Return a minimal TdaDeck, overridable via kwargs.
+
+    ``author``/``author_vekn_number``/``rank``/``gw``/``vp``/``tp`` are shorthand for
+    ``deck.player`` fields (name/vekn_number/rank/gw/vp/tp) — passed through to a
+    fresh ``deck.player`` unless ``deck`` is given already carrying one.
+    """
+    player_fields = ("author", "author_vekn_number", "rank", "gw", "vp", "tp")
+    player_kwargs = {k: kwargs.pop(k) for k in player_fields if k in kwargs}
+
+    deck = kwargs.pop("deck", None) or make_deck()
+    if deck.player is None:
+        deck.player = TdaPlayer(
+            name=player_kwargs.get("author", "3070069"),
+            vekn_number=player_kwargs.get("author_vekn_number", 3070069),
+            rank=player_kwargs.get("rank"),
+            gw=player_kwargs.get("gw"),
+            vp=player_kwargs.get("vp"),
+            tp=player_kwargs.get("tp"),
+        )
+
     defaults: dict[str, Any] = dict(
         event_id="10367",
         name="Finnish Nationals 2022",
@@ -162,9 +183,7 @@ def make_tda_deck(**kwargs: Any) -> TdaDeck:
         players_count=45,
         winner="Teemu Sainomaa",
         winner_vekn_number=3070069,
-        author="3070069",
-        author_vekn_number=3070069,
-        deck=make_deck(),
+        deck=deck,
     )
     defaults.update(kwargs)
     return TdaDeck.model_validate(defaults)

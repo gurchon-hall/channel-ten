@@ -3,9 +3,14 @@
 Scraping workflow for TDA (Tournament Deck Archive — every participant's deck,
 not just the winner's):
   1. List every archive in smeea/vdb's ``frontend/public/tournaments/`` folder.
-  2. For each archive: fetch the zip, parse ``archon.xlsx`` for event metadata,
-     and parse each participant's deck ``.txt``.
-  3. Resolve each deck's author to a VEKN number (:func:`~channel_ten.pipeline_tda.resolve_author`).
+  2. For each archive: fetch the zip, parse ``archon.xlsx`` for event metadata
+     (including every participant's Standings row), save the raw ``archon.xlsx``
+     next to that event's deck YAML files, and parse each participant's deck ``.txt``.
+  3. Join the deck's Standings row (rank/GW/VP/TP, and its Archon-reported name) via
+     the deck filename's Target Rank number, then resolve its author to a VEKN number
+     (:func:`~channel_ten.pipeline_tda.resolve_author`, falling back to that Standings
+     name over a bare VEKN number when the registry lookup fails), building a
+     ``deck.player``.
   4-5. Enrich and validate via :func:`~channel_ten.pipeline_tda.process_tda_deck`.
   6. Route each deck file via :func:`~channel_ten.pipeline_tda.route_tda_deck`.
 """
@@ -19,7 +24,8 @@ import httpx
 
 from channel_ten._logger import setup_logging
 from channel_ten.cli._common import SubParsersAction
-from channel_ten.models import TdaDeck
+from channel_ten.models import TdaDeck, TdaPlayer
+from channel_ten.output.tda_yaml import write_archon_xlsx
 from channel_ten.parser import parse_tda_deck_text
 from channel_ten.pipeline import RouteCounters
 from channel_ten.pipeline_tda import process_tda_deck, resolve_author, route_tda_deck
@@ -32,6 +38,8 @@ from channel_ten.scraper import (
     list_tda_archive_ids,
     parse_archon_xlsx,
     read_archon_xlsx,
+    standing_for_target_rank,
+    target_rank_from_deck_filename,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,13 +130,25 @@ def run(args: argparse.Namespace) -> int:
                 counters.skipped += 1
                 continue
 
+            archon_bytes = read_archon_xlsx(zip_bytes)
             try:
-                meta = parse_archon_xlsx(read_archon_xlsx(zip_bytes))
+                meta = parse_archon_xlsx(archon_bytes)
             except Exception as exc:
                 logger.error("%s: could not parse archon.xlsx: %s", archive_id, exc)
                 logger.debug("Stack trace:", exc_info=True)
                 counters.failed += 1
                 continue
+
+            try:
+                write_archon_xlsx(
+                    archon_bytes,
+                    args.tda_dir,
+                    meta.date_start,
+                    archive_id,
+                    overwrite=args.overwrite,
+                )
+            except Exception as exc:
+                logger.warning("%s: could not save archon.xlsx: %s", archive_id, exc)
 
             event_url = (
                 f"https://www.vekn.net/event-calendar/event/{archive_id}"
@@ -152,7 +172,34 @@ def run(args: argparse.Namespace) -> int:
                     counters.skipped += 1
                     continue
 
-                author, author_vekn_number = resolve_author(client, raw_author, args.delay)
+                target_rank = target_rank_from_deck_filename(filename)
+                standing = (
+                    standing_for_target_rank(meta.standings, target_rank)
+                    if target_rank is not None
+                    else None
+                )
+                if standing is None:
+                    logger.debug(
+                        "%s/%s: no Standings row for this deck (rank/GW/VP/TP left blank)",
+                        archive_id,
+                        filename,
+                    )
+
+                author, author_vekn_number = resolve_author(
+                    client,
+                    raw_author,
+                    args.delay,
+                    archon_name=standing.name if standing else None,
+                )
+
+                deck.player = TdaPlayer(
+                    name=author,
+                    vekn_number=author_vekn_number,
+                    rank=standing.final_rank if standing else None,
+                    gw=standing.gw if standing else None,
+                    vp=standing.vp if standing else None,
+                    tp=standing.tp if standing else None,
+                )
 
                 entry = TdaDeck(
                     event_id=archive_id,
@@ -165,8 +212,6 @@ def run(args: argparse.Namespace) -> int:
                     winner_vekn_number=meta.winner_vekn_number,
                     event_url=event_url,
                     archive_url=archive_url,
-                    author=author,
-                    author_vekn_number=author_vekn_number,
                     deck=deck,
                 )
 

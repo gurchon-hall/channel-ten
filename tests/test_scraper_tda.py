@@ -1,6 +1,5 @@
 """Tests for the smeea/vdb TDA read-only source (channel_ten.scraper._tda)."""
 
-import logging
 import zipfile
 from datetime import date, datetime
 from io import BytesIO
@@ -17,6 +16,8 @@ from channel_ten.scraper._tda import (
     list_tda_archive_ids,
     parse_archon_xlsx,
     read_archon_xlsx,
+    standing_for_target_rank,
+    target_rank_from_deck_filename,
 )
 
 
@@ -46,7 +47,12 @@ def _build_archon_xlsx(
     winner_vekn: int = 3070069,
     methuselah_seat: int | None = None,
 ) -> bytes:
-    """Build a minimal, structurally-faithful archon.xlsx in memory."""
+    """Build a minimal, structurally-faithful archon.xlsx in memory.
+
+    Standings/Methuselahs column layout and sample values (Final Rank 1: GW 2,
+    Prelim VP 8.5, Final VP 3, TP 156; runner-up target rank 2: GW 2, Prelim VP 8,
+    Final VP 0, TP 174) mirror a real archive (smeea/vdb's 10367.zip).
+    """
     wb = Workbook()
     info = wb.active
     assert info is not None
@@ -62,9 +68,11 @@ def _build_archon_xlsx(
     standings.append([name])
     standings.append(["Final Standings"])
     standings.append([None, True])
-    standings.append(["Final Rank", "Target Rank", "#", "Name", "Prelim GWs"])
-    standings.append([1, 1, winner_seat, winner_name, 2])
-    standings.append([2, 2, 1, "Runner Up", 2])
+    standings.append(
+        ["Final Rank", "Target Rank", "#", "Name", "Prelim GWs", "Prelim VPs", "Final VPs", "TPs"]
+    )
+    standings.append([1, 1, winner_seat, winner_name, 2, 8.5, 3, 156])
+    standings.append([2, 2, 1, "Runner Up", 2, 8, 0, 174])
 
     meth = wb.create_sheet("Methuselahs")
     meth.append([name])
@@ -113,19 +121,15 @@ Master (1)
 
 class TestListTdaArchiveIds:
     def test_filters_and_sorts_archive_ids(self):
-        tree = {
-            "tree": [
-                {"type": "blob", "path": "frontend/public/tournaments/10367.zip"},
-                {"type": "blob", "path": "frontend/public/tournaments/online2.zip"},
-                {"type": "blob", "path": "frontend/public/tournaments/online1.zip"},
-                {"type": "blob", "path": "README.md"},
-                {"type": "tree", "path": "frontend/public/tournaments"},
-                {"type": "blob", "path": "frontend/public/tournaments/9999.zip"},
-            ],
-            "truncated": False,
-        }
+        contents = [
+            {"type": "file", "path": "frontend/public/tournaments/10367.zip"},
+            {"type": "file", "path": "frontend/public/tournaments/online2.zip"},
+            {"type": "file", "path": "frontend/public/tournaments/online1.zip"},
+            {"type": "dir", "path": "frontend/public/tournaments/subdir"},
+            {"type": "file", "path": "frontend/public/tournaments/9999.zip"},
+        ]
         client = MagicMock()
-        client.get.return_value = _mock_response(json_data=tree)
+        client.get.return_value = _mock_response(json_data=contents)
 
         result = list_tda_archive_ids(client, token=None, delay=0)
         assert result == ["10367", "9999", "online1", "online2"]
@@ -137,19 +141,6 @@ class TestListTdaArchiveIds:
         )
         with pytest.raises(RuntimeError, match="rate limit"):
             list_tda_archive_ids(client, token=None, delay=0)
-
-    def test_truncated_tree_logs_warning(self, caplog: pytest.LogCaptureFixture):
-        tree = {
-            "tree": [{"type": "blob", "path": "frontend/public/tournaments/1.zip"}],
-            "truncated": True,
-        }
-        client = MagicMock()
-        client.get.return_value = _mock_response(json_data=tree)
-
-        with caplog.at_level(logging.WARNING):
-            result = list_tda_archive_ids(client, token=None, delay=0)
-        assert result == ["1"]
-        assert any("truncated" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +202,61 @@ class TestParseArchonXlsx:
         meta = parse_archon_xlsx(xlsx)
         assert meta.winner == "Teemu Sainomaa"
         assert meta.winner_vekn_number is None
+
+    def test_standings_includes_every_participant_with_gw_vp_tp(self):
+        meta = parse_archon_xlsx(_build_archon_xlsx())
+        assert len(meta.standings) == 2
+
+        winner_row = next(row for row in meta.standings if row.target_rank == 1)
+        assert winner_row.final_rank == 1
+        assert winner_row.seat == 41
+        assert winner_row.name == "Teemu Sainomaa"
+        assert winner_row.gw == 2
+        assert winner_row.vp == 11.5  # Prelim VP 8.5 + Final VP 3
+        assert winner_row.tp == 156
+        assert winner_row.vekn_number == 3070069
+
+        runner_up_row = next(row for row in meta.standings if row.target_rank == 2)
+        assert runner_up_row.final_rank == 2
+        assert runner_up_row.gw == 2
+        assert runner_up_row.vp == 8.0  # Prelim VP 8 + Final VP 0
+        assert runner_up_row.tp == 174
+        assert runner_up_row.vekn_number == 1003636  # seat 1, from Methuselahs
+
+    def test_standings_vekn_number_none_when_seat_unresolvable(self):
+        xlsx = _build_archon_xlsx(winner_seat=41, methuselah_seat=7)
+        meta = parse_archon_xlsx(xlsx)
+        winner_row = next(row for row in meta.standings if row.target_rank == 1)
+        assert winner_row.vekn_number is None
+
+
+# ---------------------------------------------------------------------------
+# target_rank_from_deck_filename / standing_for_target_rank
+# ---------------------------------------------------------------------------
+
+
+class TestTargetRankFromDeckFilename:
+    def test_extracts_trailing_number(self):
+        assert target_rank_from_deck_filename("202211_NC_Finland_22.txt") == 22
+
+    def test_single_digit(self):
+        assert target_rank_from_deck_filename("a_1.txt") == 1
+
+    def test_returns_none_when_no_trailing_number(self):
+        assert target_rank_from_deck_filename("archon.xlsx") is None
+        assert target_rank_from_deck_filename("online1.txt") is None
+
+
+class TestStandingForTargetRank:
+    def test_finds_matching_row(self):
+        meta = parse_archon_xlsx(_build_archon_xlsx())
+        row = standing_for_target_rank(meta.standings, 2)
+        assert row is not None
+        assert row.name == "Runner Up"
+
+    def test_returns_none_when_no_match(self):
+        meta = parse_archon_xlsx(_build_archon_xlsx())
+        assert standing_for_target_rank(meta.standings, 999) is None
 
 
 # ---------------------------------------------------------------------------

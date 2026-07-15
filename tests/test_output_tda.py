@@ -1,11 +1,17 @@
 """Tests for channel_ten.output.tda_yaml."""
 
+from datetime import date
 from pathlib import Path
 
 import pytest
 from conftest import make_tda_deck
 
-from channel_ten.output.tda_yaml import tda_deck_to_yaml_str, tda_event_dir, write_tda_deck_yaml
+from channel_ten.output.tda_yaml import (
+    tda_deck_to_yaml_str,
+    tda_event_dir,
+    write_archon_xlsx,
+    write_tda_deck_yaml,
+)
 
 
 class TestTdaEventDir:
@@ -23,7 +29,7 @@ class TestTdaDeckToYamlStr:
         entry = make_tda_deck()
         text = tda_deck_to_yaml_str(entry)
         assert "event_id: '10367'" in text
-        assert "author: '3070069'" in text
+        assert "vekn_number: 3070069" in text
         assert "name: Finnish Nationals 2022" in text
 
     def test_multiline_description_uses_block_scalar(self):
@@ -61,3 +67,31 @@ class TestWriteTdaDeckYaml:
         event_dir = tmp_path / "2022" / "11" / "10367"
         assert (event_dir / "3070069.yaml").exists()
         assert (event_dir / "1003636.yaml").exists()
+
+
+class TestWriteArchonXlsx:
+    def test_writes_to_event_subdir(self, tmp_path: Path):
+        path = write_archon_xlsx(b"fake xlsx bytes", tmp_path, date(2022, 11, 5), "10367")
+        assert path == tmp_path / "2022" / "11" / "10367" / "archon.xlsx"
+        assert path.read_bytes() == b"fake xlsx bytes"
+
+    def test_identical_content_is_not_rewritten(self, tmp_path: Path):
+        write_archon_xlsx(b"same bytes", tmp_path, date(2022, 11, 5), "10367")
+        path = tmp_path / "2022" / "11" / "10367" / "archon.xlsx"
+        mtime_before = path.stat().st_mtime_ns
+
+        write_archon_xlsx(b"same bytes", tmp_path, date(2022, 11, 5), "10367")
+        assert path.stat().st_mtime_ns == mtime_before
+
+    def test_different_content_is_rewritten(self, tmp_path: Path):
+        write_archon_xlsx(b"old bytes", tmp_path, date(2022, 11, 5), "10367")
+        write_archon_xlsx(b"new bytes", tmp_path, date(2022, 11, 5), "10367")
+        path = tmp_path / "2022" / "11" / "10367" / "archon.xlsx"
+        assert path.read_bytes() == b"new bytes"
+
+    def test_overwrite_true_forces_rewrite_of_identical_content(self, tmp_path: Path):
+        write_archon_xlsx(b"same bytes", tmp_path, date(2022, 11, 5), "10367")
+        path = write_archon_xlsx(
+            b"same bytes", tmp_path, date(2022, 11, 5), "10367", overwrite=True
+        )
+        assert path.read_bytes() == b"same bytes"
