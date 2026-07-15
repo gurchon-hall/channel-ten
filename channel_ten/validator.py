@@ -73,14 +73,16 @@ MIN_PLAYERS: int = int(os.getenv("MIN_PLAYERS", "10"))
 # krcg on every enrichment pass (enabling safe re-enrichment as krcg data
 # evolves). id follows a stricter rule — once attributed it must never be
 # cleared — so it is handled separately with an explicit "set only if None" guard.
-_ENRICH_FIELDS: frozenset[str] = frozenset({
-    "capacity",
-    "disciplines",
-    "title",
-    "clan",
-    "grouping",
-    "path",
-})
+_ENRICH_FIELDS: frozenset[str] = frozenset(
+    {
+        "capacity",
+        "disciplines",
+        "title",
+        "clan",
+        "grouping",
+        "path",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # krcg card-section validation helpers

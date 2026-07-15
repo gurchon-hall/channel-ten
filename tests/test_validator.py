@@ -395,10 +395,12 @@ class TestFixCardSections:
         return _ctx()
 
     def test_no_changes_when_sections_correct(self):
-        deck = _make_deck_with_sections([
-            _section("Master", [_card("Villein", 3)]),
-            _section("Action", [_card("Govern the Unaligned", 2)]),
-        ])
+        deck = _make_deck_with_sections(
+            [
+                _section("Master", [_card("Villein", 3)]),
+                _section("Action", [_card("Govern the Unaligned", 2)]),
+            ]
+        )
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
         assert fixes == []
@@ -407,12 +409,14 @@ class TestFixCardSections:
 
     def test_moves_card_to_correct_section(self):
         # Govern the Unaligned is in Master — should move to Action
-        deck = _make_deck_with_sections([
-            _section(
-                "Master",
-                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-            ),
-        ])
+        deck = _make_deck_with_sections(
+            [
+                _section(
+                    "Master",
+                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+                ),
+            ]
+        )
         with self._patch_krcg():
             fixes = fix_card_sections(deck)
 
@@ -430,12 +434,14 @@ class TestFixCardSections:
         assert action.count == 1
 
     def test_library_count_updated(self):
-        deck = _make_deck_with_sections([
-            _section(
-                "Master",
-                [_card("Villein", 2), _card("Govern the Unaligned", 1)],
-            ),
-        ])
+        deck = _make_deck_with_sections(
+            [
+                _section(
+                    "Master",
+                    [_card("Villein", 2), _card("Govern the Unaligned", 1)],
+                ),
+            ]
+        )
         with self._patch_krcg():
             fix_card_sections(deck)
         assert deck.library_count == 3  # unchanged total
@@ -462,10 +468,12 @@ class TestFixCardSections:
     def test_sections_rebuilt_in_type_order(self):
         """After fixing, sections must follow krcg TYPE_ORDER."""
         # Put Reaction before Master deliberately
-        deck = _make_deck_with_sections([
-            _section("Reaction", [_card("Deflection", 2)]),
-            _section("Master", [_card("Villein", 3)]),
-        ])
+        deck = _make_deck_with_sections(
+            [
+                _section("Reaction", [_card("Deflection", 2)]),
+                _section("Master", [_card("Villein", 3)]),
+            ]
+        )
         # Both are already correct, so force a move to trigger rebuild.
         # Put Mirror Walk (Action Modifier) in the Master section.
         deck.library_sections[1].cards.append(LibraryCard(name="Mirror Walk", count=1))
