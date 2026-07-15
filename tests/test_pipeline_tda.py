@@ -59,9 +59,7 @@ class TestResolveAuthor:
 
     def test_numeric_author_lookup_failure_falls_back_to_archon_name(self):
         client = MagicMock()
-        with patch(
-            "channel_ten.pipeline_tda.fetch_player_by_id", side_effect=RuntimeError("boom")
-        ):
+        with patch("channel_ten.pipeline_tda.fetch_player_by_id", side_effect=RuntimeError("boom")):
             name, vekn_number = resolve_author(
                 client, "3070069", delay=0, archon_name="Teemu Sainomaa"
             )
@@ -70,9 +68,7 @@ class TestResolveAuthor:
 
     def test_numeric_author_resolved_id_ignores_archon_name(self):
         client = MagicMock()
-        with patch(
-            "channel_ten.pipeline_tda.fetch_player_by_id", return_value="Tom Lindberg"
-        ):
+        with patch("channel_ten.pipeline_tda.fetch_player_by_id", return_value="Tom Lindberg"):
             name, vekn_number = resolve_author(
                 client, "1003838", delay=0, archon_name="Someone Else"
             )
