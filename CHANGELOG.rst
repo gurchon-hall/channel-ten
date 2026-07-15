@@ -15,6 +15,16 @@ starting from v0.1.0.
 Unreleased
 ==========
 
+----
+
+v0.10.0 — 2026-07-15
+=====================
+
+TDA (Tournament Deck Archive) support: a second, parallel pipeline that scrapes
+every participant's deck — not just the winner's — from ``smeea/vdb``, joins in
+each player's placement (rank/GW/VP/TP) from the tournament's own ``archon.xlsx``
+report, and preserves that report alongside the exported decks.
+
 Added
 -----
 
